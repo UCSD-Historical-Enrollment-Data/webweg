@@ -1,172 +1,153 @@
 # webweg
-An asynchronous API wrapper for UCSD's [WebReg](https://act.ucsd.edu/webreg2/start) course enrollment system.
+An asynchronous API wrapper, writen in Rust, for UCSD's 
+[WebReg](https://act.ucsd.edu/webreg2/start) course enrollment system.
 
-## Programming Language
-The main project (API wrapper) uses the latest version of [Rust](https://www.rust-lang.org/).
+## Usage
+In your `Cargo.toml`, put:
+```toml
+[dependencies]
+webweg = { git = "https://github.com/ewang2002/webweg", branch = "stable" }
+```
 
-## Wrapper Features (WIP & Completed)
-Below are some features that this wrapper has, along with what I plan on working on.
+## Wrapper Features
+A lot of the things that you can do on WebReg can be done with this interface. 
+For example, you're able to:
+- Get all possible classes in the quarter.
+- Search for classes based on some conditions (i.e. Advanced Search). 
+- Get detailed information about a specific class (e.g. number of students 
+enrolled, instructor, etc.)
+- Getting your current schedule. 
 
-### i. General GET Requests
-- [x] Get all possible classes in the quarter.
-- [x] Searching for classes based on some conditions (Advanced Search).
-- [x] Get detailed information about a specific class (like number of students enrolled, section times, etc.)
-- [x] Getting your current schedule.
-- [x] Ability to get detailed information for a wide range of classes.
+You're also able to do things like:
+- Change grading options. 
+- Enroll in, or drop, a class.
+- Plan, or un-plan, a class.
+- Waitlist, or un-waitlist, a class.
+- Create, remove, or rename your schedules. 
+- Send a confirmation email to yourself.
 
-### ii. General POST Requests
-- [x] Changing grading option.
-- [x] Enrolling in, or dropping, a class.
-- [x] Planning, or un-planning, a class.
-- [x] Waitlisting a class.
 
-### iii. Miscellaneous (Low-Priority)
-- [x] Creating, or removing/renaming, a schedule.
-- [ ] Adding, or removing, an event from a schedule.
-- [x] Sending a confirmation email to yourself.
+## Authentication
+The way to provide authorization for this wrapper is to provide cookies from an
+active WebReg session, i.e. your authentication cookies.
 
-## Wrapper Usage
+To get your authentication cookies, you'll need to do the following:
+- Log into WebReg.
+- Select a term in the WebReg main menu.
+- Open Developer Tools (With Google Chrome, go to the three dots, "More tools,"
+  and then "Developer tools.")
+- Go to the "Network" tab of the Developer Tools. Then, either:
+    - Filter by the text `https://act.ucsd.edu/webreg2/svc/wradapter`
+    - OR, filter by `Fetch/XHR`.
+- Make some sort of request on WebReg (e.g. searching a course).
+- Look for a request made by WebReg. Under the request headers, copy the cookie.
+
+Keep in mind that your cookies will expire after either:
+- 10 minutes of inactivity (i.e. you do not make some request that uses your
+  cookies for more than 10 minutes).
+- *or*, when WebReg goes into maintenance mode; this occurs daily at around
+  4:15AM pacific time.
+
+Thus, you will need to find some way to keep yourself logged into WebReg 24/7
+if you want to perform continuous requests.
+
+
+## Walkthrough
 To use the wrapper, you need to create a new instance of it. For example:
 ```rs
+use webweg::webreg_wrapper::WebRegWrapper;
+
 let term = "SP22";
-let cookie = "your authorization cookies here";
+// For authentication cookies, see previous section.
+let cookie = "your authentication cookies here";
 let w = WebRegWrapper::new(cookie.to_string(), term);
 ```
 
-Where the cookies are your authentication cookies (which you can find by looking at the cookie options in the header of any WebReg API request under the `Network` tab in Developer Tools).
+Once created, you're able to use the various wrapper functions. Some useful 
+examples are shown below (note that `w` refers to the declaration above).
 
-Once created, you're able to use the various wrapper functions. Some useful examples are shown below (note that `w` refers to the declaration above). Note that the return values may be slightly outdated, but the usage of the functions should remain the same.
+The key idea is that a majority of the wrapper functions returns an
+`Result<T, Cow<'a, str>>`, where `T` is the result type. So, if a request
+is successful, you will get `T` back; if the request is unsuccessful, you
+will get a `Cow<'a, str>` back, which is the error string generated either
+by WebReg itself or by other means.
 
 ### Check Login Status
-You can check to see if you are logged in (i.e. if the wrapper can actually perform any useful requests).
-
-<details>
-<summary>General Example</summary>
-<br> 
-
+You can check to see if you are logged in (i.e. if the wrapper can actually 
+perform any useful requests).
 ```rs
 if !w.is_valid().await {
-    println!("You aren't logged in!");
+    eprintln!("You aren't logged in!");
     return; 
 }
 ```
 
-</details>
-
-
-
 ### Get Schedule
-You can get your current schedule, which lists your Enrolled, Planned, and Waitlisted courses. You are able to fetch either the default schedule (`None`) or a specific schedule (e.g. `My Schedule 2`)
+You can get your current schedule, which lists your Enrolled, Planned, and
+Waitlisted courses. You are able to fetch either the default schedule (`None`) 
+or a specific schedule (e.g. `My Schedule 2`)
 
-<details>
-<summary>General Example</summary>
-<br> 
-Suppose you wanted to see what courses are currently in your *default* schedule. We can use the following code:
+Example: Suppose you wanted to see what courses are currently in your *default* 
+schedule. We can use the following code:
 
 ```rs
 let my_schedule = w.get_schedule(None).await;
-if let Some(schedule) = my_schedule {
-    for s in schedule {
-        println!("{}", s.to_string());
-    }
-}
+match my_schedule {
+    Ok(s) => s.into_iter().for_each(|p| println!("{}", p.to_string())),
+    Err(e) => eprintln!("{}", e),
+};
 ```
 
-This prints out:
-```
-[A05 / 75220] Ethics And Society II (POLI 28) with Elgin, Samuel Zincke - Enrolled (4 Units, L Grading, 21 / 34)
-        [LE] M at 12:00 - 12:50 in CENTR 101
-        [LE] W at 12:00 - 12:50 in CENTR 101
-        [FI] 2022-06-08 at 11:30 - 14:29 in CENTR 101
-        [DI] F at 12:00 - 12:50 in SEQUO 148
+**Remark:** If you wanted to see what courses you have planned in some other 
+schedule, you can replace `None` with `Some("your schedule name here")`.
 
-... (other courses not listed)
-```
-
-**Remark:** If you wanted to see what courses you have planned in some other schedule, you can replace `None` with `Some("your schedule name here")`.
-</details>
 
 
 ### Get Course Information
-You are able to search up course information for a particular course. If no authentication issues occur, then this function will return a vector where each element contains the instructor name, number of seats, and all meetings.
+You are able to search up course information for a particular course. If no 
+issues occur, then this function will return a vector where each element 
+contains the instructor name, number of seats, and all meetings.
 
-<details>
-<summary>General Example</summary>
-<br> 
-Suppose we wanted to look up all CSE 101 sections. We can use the following code:
+Example: Suppose we wanted to look up all CSE 101 sections. We can use the following code:
 
 ```rs
 let courses_101 = w.get_course_info("CSE", "101").await;
-if let Some(courses) = courses_101 {
-    for c in courses {
-        println!("{}", c.to_string());
-    }
-}
+match courses_101 {
+    Ok(s) => s.into_iter().for_each(|p| println!("{}", p.to_string())),
+    Err(e) => eprintln!("{}", e),
+};
 ```
-
-This prints out:
-```
-[CSE 101] [A01 / 079914] Dasgupta, Sanjoy: 0/116 (WL: 0)
-        [LE] TuTh at 9:30 - 10:50 in CENTR 119
-        [DI] F at 15:00 - 15:50 in CENTR 119
-        [FI] 2022-06-04 at 11:30 - 14:29 in WLH 2001
-
-[CSE 101] [B01 / 079915] Impagliazzo, Russell: 0/116 (WL: 0)
-        [LE] TuTh at 14:00 - 15:20 in WLH 2005
-        [DI] F at 16:00 - 16:50 in CENTR 119
-        [FI] 2022-06-04 at 11:30 - 14:29 in WLH 2005
-```
-
-</details>
 
 ### Search Courses
-You can also search up courses that meet a particular criteria. This is very similar in nature to the Advanced Search option.
+You can also search up courses that meet a particular criteria. This is 
+very similar in nature to the Advanced Search option.
 
-<details>
-<summary>Example: Searching by Section(s)</summary>
-<br> 
-Suppose we wanted to search for specific sections. In our example below, we'll search for one section of CSE 100, one section of Math 184, and one section of POLI 28. The following code will do just that: 
+
+Example 1: Suppose we wanted to search for specific sections. In our 
+example below, we'll search for one section of CSE 100, one section 
+of Math 184, and one section of POLI 28 (for Winter 2022). The following 
+code will do just that: 
 
 ```rs
+use webweg::webreg_wrapper::SearchType;
+
 let search_res = w
     .search_courses_detailed(SearchType::ByMultipleSections(&[
         "079913", "078616", "075219",
     ]))
     .await;
-if let Some(res) = search_res {
-    for r in res {
-        println!("{}", r.to_string());
-    }
-}
+match search_res {
+    Ok(s) => s.into_iter().for_each(|p| println!("{}", p.to_string())),
+    Err(e) => eprintln!("{}", e),
+};
 ```
 
-This prints out:
-```
-[CSE 100] [B02 / 079913] Staff: 0/68 (WL: 0)
-        [LE] MWF at 10:00 - 10:50 in CENTR 119
-        [DI] W at 17:00 - 17:50 in CSB 002
-        [FI] 2022-06-04 at 8:00 - 10:59 in WLH 2005
-
-[MATH 184] [A03 / 078616] Kane, Daniel Mertz: 27/35 (WL: 0)
-        [LE] MWF at 16:00 - 16:50 in HSS 1330
-        [DI] Th at 19:00 - 19:50 in APM 7321
-        [FI] 2022-06-09 at 15:00 - 17:59 in HSS 1330
-
-[POLI 28] [A04 / 075219] Elgin, Samuel Zincke: 26/34 (WL: 0)
-        [LE] MW at 12:00 - 12:50 in CENTR 101
-        [DI] W at 16:00 - 16:50 in SOLIS 111
-        [FI] 2022-06-08 at 11:30 - 14:29 in CENTR 101
-```
-
-</details>
-
-<details>
-<summary>Example: Searching by Criteria</summary>
-<br> 
-
-Suppose we wanted to search for any lower- or upper-division CSE course. We can use the following code:
+Example 2: Suppose we wanted to search for any lower- or upper-division 
+CSE course. We can use the following code:
 
 ```rs 
+use webweg::webreg_wrapper::{CourseLevelFilter, SearchRequestBuilder};
+
 let search_res = w
     .search_courses_detailed(SearchType::Advanced(
         &SearchRequestBuilder::new()
@@ -175,42 +156,21 @@ let search_res = w
             .filter_courses_by(CourseLevelFilter::LowerDivision),
     ))
     .await;
-
-if let Some(r) = search_res{
-    for c in r {
-        println!("{}", c.to_string());
-    }
-}
+match search_res {
+    Ok(s) => s.into_iter().for_each(|p| println!("{}", p.to_string())),
+    Err(e) => eprintln!("{}", e),
+};
 ```
 
-This prints out:
-```
-[CSE 6R] [A01 / 077385] Moshiri, Alexander Niema: 14/150 (WL: 0)
-        [LE] MWF at 11:00 - 11:50 in RCLAS R05
-        [DI] W at 12:00 - 12:50 in RCLAS R05
-        [MI] 2022-04-30 at 10:00 - 10:50 in RCLAS R05
 
-... (other courses not listed)
+### Planning & Un-planning a Section
+You can use the wrapper to plan a section, adding it to your schedule.
 
-[CSE 185] [A03 / 077491] Gymrek, Melissa Ann: 34/38 (WL: 0)
-        [LE] MW at 11:00 - 11:50 in CENTR 105
-        [LA] MW at 13:00 - 14:50 in EBU3B B270
-```
-
-</details>
-
-
-
-### Enroll in Section
-You can use the wrapper to plan or enroll in a particular section.
-
-<details>
-<summary>Planning a Course</summary>
-<br> 
-Suppose you wanted to plan a section of CSE 100 to your default schedule. You can use the following code:
+Example 1: Suppose you wanted to plan a section of CSE 100 to your default 
+schedule. You can use the following code:
 
 ```rs
-w.add_to_plan(PlanAdd {
+let res = w.add_to_plan(PlanAdd {
     subject_code: "CSE",
     course_code: "100",
     section_number: "079911",
@@ -221,74 +181,114 @@ w.add_to_plan(PlanAdd {
     schedule_name: None,
     unit_count: 4
 }, true).await;
+match res {
+    Ok(o) => println!("{}", if o { "Successful" } else { "Unsuccessful" }),
+    Err(e) => eprintln!("{}", e),
+};
 ```
 
-This will return `true` if the planning succeeded and `false` otherwise.
-
-**Remark:** If you wanted to see what courses you have planned in some other schedule, you can replace `None` with `Some("your schedule name here")`.
-
-</details>
-
-<details>
-<summary>Unplanning a Course</summary>
-<br> 
-Suppose you want to remove the section of CSE 100 from your default schedule. You can use the following code:
+Example 2: Suppose you want to remove the section of CSE 100 from your default
+schedule. You can use the following code:
 
 ```rs
-w.remove_from_plan("079911", None).await;
+let res = w.remove_from_plan("079911", None).await;
+match res {
+    Ok(o) => println!("{}", if o { "Successful" } else { "Unsuccessful" }),
+    Err(e) => eprintln!("{}", e),
+};
 ```
 
-This will return `true` if the removal succeeded and `false` otherwise.
+**Remark:** If you wanted to add (or remove) this section to (from) a different 
+schedule, you can do so by replacing `None` with `Some("your schedule name here")`.
 
-**Remark:** If you wanted to see what courses you have planned in some other schedule, you can replace `None` with `Some("your schedule name here")`.
+### Enrolling & Waitlisting Sections
+You can also use the wrapper to programmatically enroll or waitlist particular 
+sections.
 
-</details>
-
-<details>
-<summary>Enrolling in, or Waitlisting, a Course</summary>
-<br> 
-Suppose your enrollment time is here and you want to enroll/waitlist in a specific section of CSE 95. You can use the following code:
+Example: Suppose we wanted to enroll or waitlist a section of Math 184 with 
+section number `078616`, and then drop it afterwards. This is how we could
+do this.
 
 ```rs
-w.add_section(
-    // To waitlist, use `false` instead.
-    true,
-    EnrollWaitAdd {
-        // All you need is a section ID
-        section_number: "078483",
-        // Using the default grading option
+use std::time::Duration;
+use webweg::webreg_clean_defn::EnrollmentStatus;
+use webweg::webreg_wrapper::EnrollWaitAdd;
+
+let section_res = w
+    .search_courses_detailed(SearchType::BySection("078616"))
+    .await
+    .unwrap_or_else(|_| vec![]);
+
+if section_res.is_empty() {
+    eprintln!("No section found.");
+    return;
+}
+
+let add_res = w
+    .add_section(
+        section_res[0].has_seats(),
+        EnrollWaitAdd {
+        section_number: "078616",
+        // Use default grade option
         grading_option: None,
-        // And the default unit count
+        // Use default unit count
         unit_count: None,
-    },
-    true
-).await;
+        },
+        // Validate our request with WebReg
+        true,
+    )
+    .await;
+
+match add_res {
+    Ok(o) => println!("{}", if o { "Successful" } else { "Unsuccessful" }),
+    Err(e) => {
+        eprintln!("{}", e);
+        return;
+    }
+};
+
+// Wait a bit, although this is unnecessary.
+std::thread::sleep(Duration::from_secs(2));
+
+// Get your current schedule
+let course_to_drop = w
+    .get_schedule(None)
+    .await
+    .unwrap_or_else(|_| vec![])
+    .into_iter()
+    .find(|x| x.section_number == 78616);
+
+// Check if we're enrolled in this course
+let is_enrolled = if let Some(r) = course_to_drop {
+    match r.enrolled_status {
+        EnrollmentStatus::Enrolled => true,
+        _ => false,
+    }
+} else {
+    eprintln!("Course not enrolled or waitlisted.");
+    return;
+};
+
+// Drop the class.
+let rem_res = w.drop_section(is_enrolled, "078616").await;
+
+match rem_res {
+    Ok(o) => println!("{}", if o { "Successful" } else { "Unsuccessful" }),
+    Err(e) => eprintln!("{}", e),
+};
 ```
 
-This will return `true` if you were able to enroll/waitlist in the section and `false` otherwise. Additionally, if you are able to enroll/waitlist in said section, this function will also call an API endpoint which unplans said class from all of your schedules.
-
-</details>
-
-<details>
-<summary>Dropping a Course</summary>
-<br> 
-Suppose your enrollment time is here and you decide to drop CSE 95. You can use the following code:
-
-```rs
-// If this course is on the waitlist, use `false` instead.
-w.drop_section(true, "078483").await;
-```
-
-This will return `true` if dropping was successful and `false` otherwise.
-
-
-</details>
-
-
-
+## Tests
+I'm attempting to look into ways to formally test the library. In 
+particular, the biggest challenge is the fact that course data on
+WebReg can change at any point, making testing more tedious than
+necessary.
 
 ## Disclaimer
-I am not responsible for any damages or other issue(s) caused by any use of this wrapper. In other words, by using this wrapper, I am not responsible if you somehow get in trouble or otherwise run into problems.
+I am not responsible for any damages or other issue(s) caused by 
+any use of this wrapper. In other words, by using this wrapper, 
+I am not responsible if you somehow get in trouble or otherwise 
+run into problems.
 
 ## License
 Everything in this repository is licensed under the MIT license.

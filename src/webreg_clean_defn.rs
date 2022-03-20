@@ -39,7 +39,7 @@ impl CourseSection {
     ///
     /// # Returns
     /// `true` if there are seats and `false` otherwise.
-    fn has_seats(&self) -> bool {
+    pub fn has_seats(&self) -> bool {
         self.available_seats > 0 && self.waitlist_ct == 0
     }
 }
