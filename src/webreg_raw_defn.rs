@@ -40,7 +40,7 @@ impl ToString for RawWebRegSearchResultItem {
 /// class. For example, one `WebRegMeeting` can represent a discussion while another can
 /// represent a lecture.
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct RawWebRegMeeting {
+pub struct RawWebRegMeeting {
     /// The hour part of the end time. For example, if this meeting ends at 11:50 AM, then
     /// this would be `11`.
     #[serde(rename = "END_HH_TIME")]
@@ -150,7 +150,7 @@ pub(crate) struct RawWebRegMeeting {
 /// while another can represent a lecture. Additionally, each `ScheduledMeeting` can only represent
 /// one meeting per week (so, for example, a MWF lecture would have 3 entries).
 #[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct RawScheduledMeeting {
+pub struct RawScheduledMeeting {
     /// Number of units that this class is being taken for (e.g. 4.00)
     #[serde(rename = "SECTION_HEAD")]
     pub section_number: i64,
