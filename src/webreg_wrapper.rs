@@ -152,6 +152,7 @@ impl<'a> WebRegWrapper<'a> {
                 ("final", ""),
                 ("sectnum", ""),
                 ("termcode", self.term),
+                ("_", self._get_epoch_time().to_string().as_str()),
             ],
         )
         .unwrap();
@@ -404,6 +405,7 @@ impl<'a> WebRegWrapper<'a> {
                 ("subjcode", subject_code),
                 ("crsecode", &*crsc_code),
                 ("termcode", self.term),
+                ("_", self._get_epoch_time().to_string().as_str()),
             ],
         )
         .unwrap();
@@ -483,6 +485,7 @@ impl<'a> WebRegWrapper<'a> {
                 ("subjcode", subject_code),
                 ("crsecode", &*crsc_code),
                 ("termcode", self.term),
+                ("_", self._get_epoch_time().to_string().as_str()),
             ],
         )
         .unwrap();
@@ -945,6 +948,7 @@ impl<'a> WebRegWrapper<'a> {
                         ("isbasic", "true"),
                         ("basicsearchvalue", ""),
                         ("termcode", self.term),
+                        ("_", self._get_epoch_time().to_string().as_str()),
                     ],
                 )
                 .unwrap()
@@ -1299,13 +1303,9 @@ impl<'a> WebRegWrapper<'a> {
     /// # Returns
     /// `true` if the ping was successful and `false` otherwise.
     pub async fn ping_server(&self) -> bool {
-        let epoch_time = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
         let res = self
             .client
-            .get(format!("{}?_={}", PING_SERVER, epoch_time))
+            .get(format!("{}?_={}", PING_SERVER, self._get_epoch_time()))
             .header(COOKIE, &self.cookies)
             .header(USER_AGENT, MY_USER_AGENT)
             .send()
@@ -1507,6 +1507,13 @@ impl<'a> WebRegWrapper<'a> {
     #[inline(always)]
     fn _internal_is_valid(&self, str: &str) -> bool {
         !str.contains("Skip to main content")
+    }
+
+    fn _get_epoch_time(&self) -> u128 {
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_millis()
     }
 
     #[inline(always)]
