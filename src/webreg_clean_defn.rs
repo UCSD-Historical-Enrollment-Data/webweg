@@ -68,7 +68,7 @@ impl ToString for CourseSection {
     }
 }
 
-/// A meeting.
+/// A meeting. Usually represents a lecture, final exam, discussion, and more.
 #[derive(Debug, Clone, Serialize)]
 pub struct Meeting {
     /// The meeting type. For example, this can be `LE`, `FI`, `DI`, etc.
@@ -93,6 +93,7 @@ pub struct Meeting {
     pub room: String,
 }
 
+/// An enum that represents the meeting days for a section meeting.
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum MeetingDay {
@@ -215,6 +216,7 @@ impl ToString for ScheduledSection {
     }
 }
 
+/// An enum that represents your enrollment status.
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum EnrollmentStatus {
