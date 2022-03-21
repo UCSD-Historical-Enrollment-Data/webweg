@@ -1,5 +1,5 @@
 use crate::webreg_clean_defn::MeetingDay;
-use crate::webreg_raw_defn::WebRegMeeting;
+use crate::webreg_raw_defn::RawWebRegMeeting;
 
 /// Checks if this is a valid WebReg meeting. This, in particular, checks to make sure the times
 /// are not all 0. If they are, this implies that the section was canceled.
@@ -10,7 +10,7 @@ use crate::webreg_raw_defn::WebRegMeeting;
 /// # Returns
 /// `true` if this is a valid meeting and `false` otherwise.
 #[inline]
-pub fn is_valid_meeting(webreg_meeting: &WebRegMeeting) -> bool {
+pub fn is_valid_meeting(webreg_meeting: &RawWebRegMeeting) -> bool {
     webreg_meeting.start_time_min != 0
         || webreg_meeting.start_time_hr != 0
         || webreg_meeting.end_time_min != 0
@@ -29,7 +29,7 @@ pub fn is_valid_meeting(webreg_meeting: &WebRegMeeting) -> bool {
 /// - the first element is the meeting type
 /// - the second element is/are the day(s) that this meeting occurs
 #[inline]
-pub fn parse_meeting_type_date(w_meeting: &WebRegMeeting) -> (&str, MeetingDay) {
+pub fn parse_meeting_type_date(w_meeting: &RawWebRegMeeting) -> (&str, MeetingDay) {
     let special_meeting = w_meeting.special_meeting.trim();
     if !special_meeting.is_empty() && special_meeting != "TBA" {
         assert!(!w_meeting.section_start_date.is_empty());

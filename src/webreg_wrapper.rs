@@ -2,7 +2,7 @@ use crate::webreg_clean_defn::{
     CourseSection, EnrollmentStatus, Meeting, MeetingDay, ScheduledSection,
 };
 use crate::webreg_helper;
-use crate::webreg_raw_defn::{ScheduledMeeting, WebRegMeeting, WebRegSearchResultItem};
+use crate::webreg_raw_defn::{RawScheduledMeeting, RawWebRegMeeting, RawWebRegSearchResultItem};
 use reqwest::header::{COOKIE, USER_AGENT};
 use reqwest::{Client, Error, Response};
 use serde::de::DeserializeOwned;
@@ -53,7 +53,8 @@ const WAITLIST_ADD: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/ad
 const WAITLIST_EDIT: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/edit-wait";
 const WAILIST_DROP: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/drop-wait";
 
-/// A wrapper for [UCSD's WebReg](https://act.ucsd.edu/webreg2/start).
+/// A wrapper for [UCSD's WebReg](https://act.ucsd.edu/webreg2/start). For more information,
+/// please see the README.
 pub struct WebRegWrapper<'a> {
     cookies: String,
     client: Client,
@@ -153,10 +154,10 @@ impl<'a> WebRegWrapper<'a> {
                 ("termcode", self.term),
             ],
         )
-            .unwrap();
+        .unwrap();
 
         let res = self
-            ._process_get_result::<Vec<ScheduledMeeting>>(
+            ._process_get_result::<Vec<RawScheduledMeeting>>(
                 self.client
                     .get(url)
                     .header(COOKIE, &self.cookies)
@@ -170,8 +171,8 @@ impl<'a> WebRegWrapper<'a> {
             return Ok(vec![]);
         }
 
-        let mut base_group_secs: HashMap<&str, Vec<&ScheduledMeeting>> = HashMap::new();
-        let mut special_classes: HashMap<&str, Vec<&ScheduledMeeting>> = HashMap::new();
+        let mut base_group_secs: HashMap<&str, Vec<&RawScheduledMeeting>> = HashMap::new();
+        let mut special_classes: HashMap<&str, Vec<&RawScheduledMeeting>> = HashMap::new();
         for s_meeting in &res {
             if s_meeting.enrolled_count == Some(0) && s_meeting.section_capacity == Some(0) {
                 continue;
@@ -207,8 +208,8 @@ impl<'a> WebRegWrapper<'a> {
             assert!(
                 !all_main.is_empty()
                     && all_main
-                    .iter()
-                    .all(|x| x.meeting_type == all_main[0].meeting_type)
+                        .iter()
+                        .all(|x| x.meeting_type == all_main[0].meeting_type)
             );
 
             let mut all_meetings: Vec<Meeting> = vec![];
@@ -405,10 +406,10 @@ impl<'a> WebRegWrapper<'a> {
                 ("termcode", self.term),
             ],
         )
-            .unwrap();
+        .unwrap();
 
         let meetings = self
-            ._process_get_result::<Vec<WebRegMeeting>>(
+            ._process_get_result::<Vec<RawWebRegMeeting>>(
                 self.client
                     .get(url)
                     .header(COOKIE, &self.cookies)
@@ -484,10 +485,10 @@ impl<'a> WebRegWrapper<'a> {
                 ("termcode", self.term),
             ],
         )
-            .unwrap();
+        .unwrap();
 
         let parsed = self
-            ._process_get_result::<Vec<WebRegMeeting>>(
+            ._process_get_result::<Vec<RawWebRegMeeting>>(
                 self.client
                     .get(url)
                     .header(COOKIE, &self.cookies)
@@ -502,7 +503,7 @@ impl<'a> WebRegWrapper<'a> {
 
         // Process any "special" sections
         let mut sections: Vec<CourseSection> = vec![];
-        let mut unprocessed_sections: Vec<WebRegMeeting> = vec![];
+        let mut unprocessed_sections: Vec<RawWebRegMeeting> = vec![];
         for webreg_meeting in parsed {
             if !webreg_helper::is_valid_meeting(&webreg_meeting) {
                 continue;
@@ -559,7 +560,7 @@ impl<'a> WebRegWrapper<'a> {
         }
 
         // Process remaining sections
-        let mut all_groups: Vec<GroupedSection<WebRegMeeting>> = vec![];
+        let mut all_groups: Vec<GroupedSection<RawWebRegMeeting>> = vec![];
         let mut sec_main_ids = unprocessed_sections
             .iter()
             .filter(|x| x.sect_code.ends_with("00"))
@@ -822,13 +823,13 @@ impl<'a> WebRegWrapper<'a> {
     pub async fn search_courses(
         &self,
         filter_by: SearchType<'_>,
-    ) -> Output<'a, Vec<WebRegSearchResultItem>> {
+    ) -> Output<'a, Vec<RawWebRegSearchResultItem>> {
         let url = match filter_by {
             SearchType::BySection(section) => Url::parse_with_params(
                 WEBREG_SEARCH_SEC,
                 &[("sectionid", section), ("termcode", self.term)],
             )
-                .unwrap(),
+            .unwrap(),
             SearchType::ByMultipleSections(sections) => Url::parse_with_params(
                 WEBREG_SEARCH_SEC,
                 &[
@@ -836,7 +837,7 @@ impl<'a> WebRegWrapper<'a> {
                     ("termcode", self.term),
                 ],
             )
-                .unwrap(),
+            .unwrap(),
             SearchType::Advanced(request_filter) => {
                 let subject_code = if request_filter.subjects.is_empty() {
                     "".to_string()
@@ -946,11 +947,11 @@ impl<'a> WebRegWrapper<'a> {
                         ("termcode", self.term),
                     ],
                 )
-                    .unwrap()
+                .unwrap()
             }
         };
 
-        self._process_get_result::<Vec<WebRegSearchResultItem>>(
+        self._process_get_result::<Vec<RawWebRegSearchResultItem>>(
             self.client
                 .get(url)
                 .header(COOKIE, &self.cookies)
@@ -958,7 +959,7 @@ impl<'a> WebRegWrapper<'a> {
                 .send()
                 .await,
         )
-            .await
+        .await
     }
 
     /// Sends an email to yourself using the same email that is used to confirm that you have
@@ -1050,7 +1051,7 @@ impl<'a> WebRegWrapper<'a> {
                 .send()
                 .await,
         )
-            .await
+        .await
     }
 
     /// Allows you to plan a course.
@@ -1090,8 +1091,8 @@ impl<'a> WebRegWrapper<'a> {
                     .send()
                     .await,
             )
-                .await
-                .unwrap_or(false);
+            .await
+            .unwrap_or(false);
         }
 
         self._process_post_response(
@@ -1124,7 +1125,7 @@ impl<'a> WebRegWrapper<'a> {
                 .send()
                 .await,
         )
-            .await
+        .await
     }
 
     /// Allows you to unplan a course.
@@ -1154,7 +1155,7 @@ impl<'a> WebRegWrapper<'a> {
                 .send()
                 .await,
         )
-            .await
+        .await
     }
 
     /// Enrolls in, or waitlists, a class.
@@ -1205,7 +1206,7 @@ impl<'a> WebRegWrapper<'a> {
                     .send()
                     .await,
             )
-                .await?;
+            .await?;
         }
 
         self._process_post_response(
@@ -1232,7 +1233,7 @@ impl<'a> WebRegWrapper<'a> {
                 .send()
                 .await,
         )
-            .await?;
+        .await?;
 
         // This will always return true
         self._process_post_response(
@@ -1247,7 +1248,7 @@ impl<'a> WebRegWrapper<'a> {
                 .send()
                 .await,
         )
-            .await
+        .await
     }
 
     /// Drops a section.
@@ -1288,7 +1289,7 @@ impl<'a> WebRegWrapper<'a> {
                 .send()
                 .await,
         )
-            .await
+        .await
     }
 
     /// Pings the WebReg server. Presumably, this is the endpoint that is used to ensure that
@@ -1298,7 +1299,10 @@ impl<'a> WebRegWrapper<'a> {
     /// # Returns
     /// `true` if the ping was successful and `false` otherwise.
     pub async fn ping_server(&self) -> bool {
-        let epoch_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis();
+        let epoch_time = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
         let res = self
             .client
             .get(format!("{}?_={}", PING_SERVER, epoch_time))
@@ -1314,7 +1318,7 @@ impl<'a> WebRegWrapper<'a> {
                     json!({
                         "SESSION_OK": false
                     })
-                        .to_string()
+                    .to_string()
                 });
 
                 let json: Value = serde_json::from_str(&text).unwrap_or_default();
@@ -1352,7 +1356,7 @@ impl<'a> WebRegWrapper<'a> {
                 .send()
                 .await,
         )
-            .await
+        .await
     }
 
     /// Removes a schedule. You cannot delete the default `My Schedule` one.
@@ -1378,7 +1382,7 @@ impl<'a> WebRegWrapper<'a> {
                 .send()
                 .await,
         )
-            .await
+        .await
     }
 
     /// Gets all of your schedules.
@@ -1398,7 +1402,7 @@ impl<'a> WebRegWrapper<'a> {
                 .send()
                 .await,
         )
-            .await
+        .await
     }
 
     /// Processes a GET response from the resulting JSON, if any.
@@ -1453,7 +1457,7 @@ impl<'a> WebRegWrapper<'a> {
                             "OPS": "FAIL",
                             "REASON": ""
                         })
-                            .to_string()
+                        .to_string()
                     });
 
                     let json: Value = serde_json::from_str(&text).unwrap();
@@ -1533,6 +1537,25 @@ struct GroupedSection<'a, T> {
     other_special_meetings: Vec<&'a T>,
 }
 
+/// Use this struct to add more information regarding the section that you want to enroll/waitlist
+/// in.
+///
+/// An example of this struct in use can be seen below (taken from the README):
+/// ```rs
+/// let add_res = w
+///     .add_section(
+///         true,
+///         EnrollWaitAdd {
+///             section_number: "078616",
+///             // Use default grade option
+///             grading_option: None,
+///             // Use default unit count
+///             unit_count: None,
+///         },
+///         true,
+///     )
+///     .await;
+/// ```
 pub struct EnrollWaitAdd<'a> {
     /// The section number. For example, `0123123`.
     pub section_number: &'a str,
@@ -1544,6 +1567,26 @@ pub struct EnrollWaitAdd<'a> {
     pub unit_count: Option<u8>,
 }
 
+/// Use this struct to add more information regarding the course that you want to plan.
+///
+/// An example of this struct in use can be seen below (taken from the README):
+/// ```rs
+/// let res = w.add_to_plan(PlanAdd {
+///     subject_code: "CSE",
+///     course_code: "100",
+///     section_number: "079911",
+///     section_code: "A01",
+///     // Using S/U grading.
+///     grading_option: Some("S"),
+///     // Put in default schedule
+///     schedule_name: None,
+///     unit_count: 4
+/// }, true).await;
+/// match res {
+///     Ok(o) => println!("{}", if o { "Successful" } else { "Unsuccessful" }),
+///     Err(e) => eprintln!("{}", e),
+/// };
+/// ```
 pub struct PlanAdd<'a> {
     /// The subject code. For example, `CSE`.
     pub subject_code: &'a str,

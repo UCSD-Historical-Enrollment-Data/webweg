@@ -1,5 +1,5 @@
 //! # webweg
-//! An asynchronous API wrapper, writen in Rust, for UCSD's
+//! An asynchronous API wrapper, written in Rust, for UCSD's
 //! [WebReg](https://act.ucsd.edu/webreg2/start) course enrollment system.
 //!
 //! ## Usage
@@ -10,8 +10,8 @@
 //! ```
 //!
 //! ## Wrapper Features
-//! A lot of the things that you can do on WebReg can be done with this interface.
-//! For example, you're able to:
+//! A lot of the crucial things that you can do on WebReg can be done with this
+//! interface. For example, you're able to:
 //! - Get all possible classes in the quarter.
 //! - Search for classes based on some conditions (i.e. Advanced Search).
 //! - Get detailed information about a specific class (e.g. number of students
@@ -228,11 +228,11 @@
 //!     .add_section(
 //!         section_res[0].has_seats(),
 //!         EnrollWaitAdd {
-//!         section_number: "078616",
-//!         // Use default grade option
-//!         grading_option: None,
-//!         // Use default unit count
-//!         unit_count: None,
+//!             section_number: "078616",
+//!             // Use default grade option
+//!             grading_option: None,
+//!             // Use default unit count
+//!             unit_count: None,
 //!         },
 //!         // Validate our request with WebReg
 //!         true,
@@ -278,11 +278,24 @@
 //! };
 //! ```
 //!
+//! ## Definition Files
+//! This crate comes with two definition files:
+//! - `webreg_raw_defn`
+//! - `webreg_clean_defn`
+//!
+//! Most wrapper methods will make use of return types which can be found in
+//! `webreg_clean_defn`. Very rarely will you need to use `webreg_raw_defn`;
+//! the only time you will need to use `webreg_clean_defn` is if you're using
+//! the `search_courses` method.
+//!
 //! ## Tests
-//! I'm attempting to look into ways to formally test the library. In
-//! particular, the biggest challenge is the fact that course data on
-//! WebReg can change at any point, making testing more tedious than
-//! necessary.
+//! Very basic tests can be found in the `tests` folder. You will need
+//! to provide your cookies in the `cookie.txt` file; place this file in
+//! the project root directory (i.e. the directory with the `src` and
+//! `tests` directories).
+//!
+//! Due to WebReg constantly changing, making long-term tests is not
+//! feasible. Thus, I will only test major things.
 //!
 //! ## Disclaimer
 //! I am not responsible for any damages or other issue(s) caused by
@@ -294,7 +307,7 @@
 //! Everything in this repository is licensed under the MIT license.
 
 mod webreg_helper;
-mod webreg_raw_defn;
 
 pub mod webreg_clean_defn;
+pub mod webreg_raw_defn;
 pub mod webreg_wrapper;
