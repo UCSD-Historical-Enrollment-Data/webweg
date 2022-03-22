@@ -145,13 +145,13 @@ pub struct RawWebRegMeeting {
     pub needs_waitlist: String,
 }
 
-/// A meeting that you have enrolled in.. Note that this doesn't represent a class by itself, but
+/// A meeting that you have enrolled in. Note that this doesn't represent a class by itself, but
 /// rather a "piece" of that class. For example, one `ScheduledMeeting` can represent a discussion
 /// while another can represent a lecture. Additionally, each `ScheduledMeeting` can only represent
 /// one meeting per week (so, for example, a MWF lecture would have 3 entries).
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RawScheduledMeeting {
-    /// Number of units that this class is being taken for (e.g. 4.00)
+    /// The section number. Each section has a unique number identifier.
     #[serde(rename = "SECTION_HEAD")]
     pub section_number: i64,
 
