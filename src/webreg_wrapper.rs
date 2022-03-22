@@ -13,10 +13,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::time::SystemTime;
 use url::Url;
 
-/// The generic type is the return value. Otherwise, regardless of request type,
-/// we're just returning the error string if there is an error.
-type Output<'a, T> = Result<T, Cow<'a, str>>;
-
+// URLs for WebReg
 const MY_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, \
 like Gecko) Chrome/97.0.4692.71 Safari/537.36";
 
@@ -53,6 +50,10 @@ const WAITLIST_ADD: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/ad
 const WAITLIST_EDIT: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/edit-wait";
 const WAILIST_DROP: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/drop-wait";
 
+/// The generic type is the return value. Otherwise, regardless of request type,
+/// we're just returning the error string if there is an error.
+pub type Output<'a, T> = Result<T, Cow<'a, str>>;
+
 /// A wrapper for [UCSD's WebReg](https://act.ucsd.edu/webreg2/start). For more information,
 /// please see the README.
 pub struct WebRegWrapper<'a> {
@@ -74,6 +75,23 @@ impl<'a> WebRegWrapper<'a> {
         WebRegWrapper {
             cookies,
             client: Client::new(),
+            term,
+        }
+    }
+
+    /// Creates a new instance of the `WebRegWrapper` with a custom client.
+    ///
+    /// # Parameters
+    /// - `cookies`: The cookies from your session of WebReg.
+    /// - `term`: The term.
+    /// - `client`: The client.
+    ///
+    /// # Returns
+    /// The new instance.
+    pub fn new_with_client(cookies: String, term: &'a str, client: Client) -> Self {
+        WebRegWrapper {
+            cookies,
+            client,
             term,
         }
     }
@@ -298,7 +316,7 @@ impl<'a> WebRegWrapper<'a> {
             };
 
             schedule.push(ScheduledSection {
-                section_number: sch_meetings[0].section_number,
+                section_number: sch_meetings[0].section_number.to_string(),
                 instructor: sch_meetings[0].person_full_name.trim().to_string(),
                 subject_code: sch_meetings[0].subj_code.trim().to_string(),
                 course_code: sch_meetings[0].course_code.trim().to_string(),
@@ -341,7 +359,7 @@ impl<'a> WebRegWrapper<'a> {
             let enrolled_count = sch_meetings[0].enrolled_count.unwrap_or(-1);
 
             schedule.push(ScheduledSection {
-                section_number: sch_meetings[0].section_number,
+                section_number: sch_meetings[0].section_number.to_string(),
                 instructor: sch_meetings[0].person_full_name.trim().to_string(),
                 subject_code: sch_meetings[0].subj_code.trim().to_string(),
                 course_code: sch_meetings[0].course_code.trim().to_string(),
@@ -1005,27 +1023,51 @@ impl<'a> WebRegWrapper<'a> {
     /// - `section_number`: The section number corresponding to the class that you want to change
     /// the grading option for.
     /// - `new_grade_opt`: The new grading option. This must either be `L` (letter),
-    /// `P` (pass/no pass), or `S` (satisfactory/unsatisfactory).
+    /// `P` (pass/no pass), or `S` (satisfactory/unsatisfactory), and is enforced via an enum.
     ///
     /// # Returns
     /// `true` if the process succeeded, or a string containing the error message from WebReg if
     /// something wrong happened.
     pub async fn change_grading_option(
         &self,
-        section_number: i64,
-        new_grade_opt: &str,
+        section_number: &str,
+        new_grade_opt: GradeOption,
     ) -> Output<'a, bool> {
-        match new_grade_opt {
-            "L" | "P" | "S" => {}
-            _ => return Err("Invalid grade option.".into()),
+        let new_grade_opt = match new_grade_opt {
+            GradeOption::L => "L",
+            GradeOption::S => "S",
+            GradeOption::P => "P",
         };
+
+        // "Slice" any zeros off of the left-most side of the string. We need to do this
+        // because, when comparing section numbers in the schedule, WebReg gives us the
+        // section numbers as integers; however, for the rest of the API, it's given as a
+        // string.
+        //
+        // Essentially, this means that, while most of WebReg's API will take `"079911"` as
+        // an input and as an output (e.g. see `get_course_info`), the schedule API will
+        // specifically return an integer `79911`. The `get_schedule` function will simply
+        // convert this integer to a string, e.g. `79911` -> `"79911"` and return that along
+        // with the other parsed info for each scheduled section.
+        //
+        // So, we need to slice off any 0s from the input parameter `section_number` to account
+        // for this.
+        let mut left_idx = 0;
+        for c in section_number.chars() {
+            if c != '0' {
+                break;
+            }
+
+            left_idx += 1;
+            continue;
+        }
 
         let poss_class = self
             .get_schedule(None)
             .await
             .unwrap_or_default()
             .into_iter()
-            .find(|x| x.section_number == section_number);
+            .find(|x| x.section_number == section_number[left_idx..]);
 
         if poss_class.is_none() {
             return Err("Class not found.".into());
@@ -1504,11 +1546,22 @@ impl<'a> WebRegWrapper<'a> {
         self.term
     }
 
+    /// Checks if the output string represents a valid session.
+    ///
+    /// # Parameters
+    /// - `str`: The string.
+    ///
+    /// # Returns
+    /// `true` if the string doesn't contain signs that we have an invalid session.
     #[inline(always)]
     fn _internal_is_valid(&self, str: &str) -> bool {
         !str.contains("Skip to main content")
     }
 
+    /// Gets the current epoch time.
+    ///
+    /// # Returns
+    /// The current time.
     fn _get_epoch_time(&self) -> u128 {
         SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
@@ -1516,6 +1569,14 @@ impl<'a> WebRegWrapper<'a> {
             .as_millis()
     }
 
+    /// Gets the formatted course code so that it can be recognized by WebReg's internal API.
+    ///
+    /// # Parameters
+    /// - `course_code`: The course code, e.g. if you have the course `CSE 110`, you would put
+    /// `110`.
+    ///
+    /// # Returns
+    /// The formatted course code for WebReg.
     #[inline(always)]
     fn _get_formatted_course_code(&self, course_code: &str) -> String {
         // If the course code only has 1 digit (excluding any letters), then we need to prepend 2
@@ -1747,24 +1808,21 @@ impl<'a> SearchRequestBuilder<'a> {
     /// Only shows courses based on the specified day(s).
     ///
     /// # Parameters
-    /// - `day`: The day. Here:
-    ///     - Monday is represented as `1`
-    ///     - Tuesday is represented as `2`
-    ///     - ...
-    ///     - Saturday is represented as `6`
-    ///     - Sunday is represented as `7`.
+    /// - `day`: The day.
     ///
     /// # Returns
     /// The `SearchRequestBuilder`
-    pub fn apply_days(mut self, day: u32) -> Self {
-        if !(1..=7).contains(&day) {
-            return self;
-        }
+    pub fn apply_days(mut self, day: DayOfWeek) -> Self {
+        let day = match day {
+            DayOfWeek::Monday => 1,
+            DayOfWeek::Tuesday => 2,
+            DayOfWeek::Wednesday => 3,
+            DayOfWeek::Thursday => 4,
+            DayOfWeek::Friday => 5,
+            DayOfWeek::Saturday => 6,
+            DayOfWeek::Sunday => 7,
+        };
 
-        // Monday = 1
-        // Tuesday = 2
-        // ...
-        // Sunday = 7
         self.days |= 1 << (7 - day);
         self
     }
@@ -1813,6 +1871,20 @@ impl<'a> SearchRequestBuilder<'a> {
     }
 }
 
+/// The day of week enum, which designates what days you want
+/// to filter specific sections by.
+pub enum DayOfWeek {
+    Monday,
+    Tuesday,
+    Wednesday,
+    Thursday,
+    Friday,
+    Saturday,
+    Sunday,
+}
+
+/// The course level filter enum, which can be used to filter
+/// specific sections by.
 pub enum CourseLevelFilter {
     /// Level 1-99 courses.
     LowerDivision,
@@ -1850,4 +1922,16 @@ pub enum SearchType<'a> {
 
     /// Searches for a (set of) course(s) by multiple specifications.
     Advanced(&'a SearchRequestBuilder<'a>),
+}
+
+/// The possible grading options.
+pub enum GradeOption {
+    /// S/U grading (Satisfactory/Unsatisfactory) option.
+    S,
+
+    /// P/NP grading (Pass/No Pass) option.
+    P,
+
+    /// Letter grading option.
+    L,
 }

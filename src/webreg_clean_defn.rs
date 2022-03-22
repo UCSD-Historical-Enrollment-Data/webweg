@@ -151,7 +151,7 @@ impl ToString for Meeting {
 #[derive(Debug, Clone, Serialize)]
 pub struct ScheduledSection {
     /// The section number, for example `79903`.
-    pub section_number: i64,
+    pub section_number: String,
     /// The subject code. For example, if this represents `CSE 100`, then this would be `CSE`.
     pub subject_code: String,
     /// The subject code. For example, if this represents `CSE 100`, then this would be `100`.

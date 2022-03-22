@@ -1,6 +1,10 @@
 use std::collections::HashSet;
+use std::time::Duration;
+use tokio::time;
 use webweg::webreg_clean_defn::MeetingDay;
-use webweg::webreg_wrapper::{CourseLevelFilter, SearchRequestBuilder, SearchType, WebRegWrapper};
+use webweg::webreg_wrapper::{
+    CourseLevelFilter, DayOfWeek, GradeOption, SearchRequestBuilder, SearchType, WebRegWrapper,
+};
 
 const TERM: &str = "SP22";
 
@@ -78,8 +82,8 @@ async fn test_get_course_info() {
     assert_eq!(30, lecture.start_min);
     assert_eq!(12 + 4, lecture.end_hr);
     assert_eq!(50, lecture.end_min);
-    assert_eq!("RWAC", lecture.building);
-    assert_eq!("0121", lecture.room);
+    assert_eq!("CENTR", lecture.building);
+    assert_eq!("115", lecture.room);
 
     // Test discussion: W from 7:00p-7:50p at APM 5402
     let discussion = discussion.unwrap();
@@ -210,9 +214,9 @@ async fn test_adv_search() {
                 .add_subject("CSE")
                 .filter_courses_by(CourseLevelFilter::LowerDivision)
                 .filter_courses_by(CourseLevelFilter::UpperDivision)
-                .apply_days(1)
-                .apply_days(3)
-                .apply_days(5)
+                .apply_days(DayOfWeek::Monday)
+                .apply_days(DayOfWeek::Wednesday)
+                .apply_days(DayOfWeek::Friday)
                 .set_start_time(10, 0)
                 .set_end_time(12 + 6, 0),
         ))
@@ -228,4 +232,45 @@ async fn test_adv_search() {
         .collect::<HashSet<_>>();
     assert_eq!(15, all_courses.len());
     assert!(all_courses.iter().all(|x| x.starts_with("CSE")));
+}
+
+/// This function tests changing the grading options. Note that it's not easy to
+/// programmatically validate that the functions work as expected.
+#[tokio::test]
+async fn test_change_grade_options() {
+    let wrapper = WebRegWrapper::new(get_cookie_str(), TERM);
+    assert!(wrapper.is_valid().await);
+
+    // Try to change grading option to P for a class that we're enrolled in.
+    let test1 = wrapper.change_grading_option("84932", GradeOption::P).await;
+    assert!(test1.is_ok());
+    time::sleep(Duration::from_secs(2)).await;
+
+    // Same class again, but with one zero.
+    let test2 = wrapper
+        .change_grading_option("00084932", GradeOption::L)
+        .await;
+    assert!(test2.is_ok());
+    time::sleep(Duration::from_secs(2)).await;
+
+    // Try a different class that we aren't enrolled in.
+    let test3 = wrapper
+        .change_grading_option("079911", GradeOption::P)
+        .await;
+    assert!(test3.is_err());
+    time::sleep(Duration::from_secs(2)).await;
+
+    // Same class as test 1 & 2, but this time we're trying to change to S/U grading (which is
+    // not allowed).
+    let test4 = wrapper
+        .change_grading_option("084932", GradeOption::S)
+        .await;
+    assert!(test4.is_err());
+    time::sleep(Duration::from_secs(2)).await;
+
+    // Same class as test 1 & 2, just changing back to letter.
+    let test5 = wrapper
+        .change_grading_option("084932", GradeOption::L)
+        .await;
+    assert!(test5.is_ok());
 }
