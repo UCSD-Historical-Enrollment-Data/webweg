@@ -37,9 +37,9 @@ async fn test_get_course_info() {
 
     let math_155a = math_155a.unwrap();
     // There are 2 sections of Math 155A: Section A01 and Section A02
-    assert_eq!(2, math_155a.len());
+    assert_eq!(3, math_155a.len());
     assert_eq!(
-        vec!["A01".to_string(), "A02".to_string()],
+        vec!["A01".to_string(), "A02".to_string(), "A03".to_string()],
         math_155a
             .iter()
             .map(|x| x.section_code.as_str())
