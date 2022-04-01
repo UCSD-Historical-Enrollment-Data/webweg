@@ -12,7 +12,7 @@ pub struct CourseSection {
     /// The section code. For example, `B01`.
     pub section_code: String,
     /// The instructor.
-    pub instructor: String,
+    pub instructor: Vec<String>,
     /// The number of available seats. For example, suppose a section had 30 seats
     /// total and there are 5 people enrolled. Then, this will be `25`.
     pub available_seats: i64,
@@ -51,7 +51,7 @@ impl ToString for CourseSection {
             self.subj_course_id,
             self.section_code,
             self.section_id,
-            self.instructor,
+            self.instructor.join(" & "),
             self.available_seats,
             self.enrolled_ct,
             self.total_seats,
@@ -169,7 +169,7 @@ pub struct ScheduledSection {
     /// The grading option. This can be one of `L`, `P`, or `S`.
     pub grade_option: String,
     /// The instructor for this course.
-    pub instructor: String,
+    pub instructor: Vec<String>,
     /// The number of units that you are taking this course for.
     pub units: f32,
     /// Your enrollment status.
@@ -198,7 +198,7 @@ impl ToString for ScheduledSection {
             self.course_title,
             self.subject_code,
             self.course_code,
-            self.instructor,
+            self.instructor.join(" & "),
             status,
             self.units,
             self.grade_option,
