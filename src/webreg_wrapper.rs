@@ -215,6 +215,12 @@ impl<'a> WebRegWrapper<'a> {
         let mut schedule: Vec<ScheduledSection> = vec![];
 
         for (_, sch_meetings) in base_group_secs {
+            let instructors = self._get_all_instructors(
+                sch_meetings
+                    .iter()
+                    .map(|x| self._get_instructor_name(&x.person_full_name)),
+            );
+
             // Literally all just to find the "main" lecture since webreg is inconsistent
             // plus some courses may not have a lecture.
             let all_main = sch_meetings
@@ -317,7 +323,7 @@ impl<'a> WebRegWrapper<'a> {
 
             schedule.push(ScheduledSection {
                 section_number: sch_meetings[0].section_number.to_string(),
-                instructor: sch_meetings[0].person_full_name.trim().to_string(),
+                instructor: instructors.clone(),
                 subject_code: sch_meetings[0].subj_code.trim().to_string(),
                 course_code: sch_meetings[0].course_code.trim().to_string(),
                 course_title: sch_meetings[0].course_title.trim().to_string(),
@@ -360,7 +366,11 @@ impl<'a> WebRegWrapper<'a> {
 
             schedule.push(ScheduledSection {
                 section_number: sch_meetings[0].section_number.to_string(),
-                instructor: sch_meetings[0].person_full_name.trim().to_string(),
+                instructor: self._get_all_instructors(
+                    sch_meetings
+                        .iter()
+                        .map(|x| self._get_instructor_name(&x.person_full_name)),
+                ),
                 subject_code: sch_meetings[0].subj_code.trim().to_string(),
                 course_code: sch_meetings[0].course_code.trim().to_string(),
                 course_title: sch_meetings[0].course_title.trim().to_string(),
@@ -397,9 +407,12 @@ impl<'a> WebRegWrapper<'a> {
     ///
     /// Unlike the `get_course_info` function, this function only returns a vector of sections
     /// with the proper enrollment counts. Therefore, the `meetings` vector will always be
-    /// empty as it is not relevant. If you want full course information, use `get_course_info`.
-    /// If you only care about the number of people enrolled in a section, this function is
-    /// for you.
+    /// empty as it is not relevant.
+    ///
+    /// Additionally, this function only returns one of some number of possible instructors.
+    ///
+    /// If you want full course information, use `get_course_info`. If you only care about the
+    /// number of people enrolled in a section, this function is for you.
     ///
     /// # Parameters
     /// - `subject_code`: The subject code. For example, if you wanted to check `MATH 100B`, you
@@ -457,13 +470,7 @@ impl<'a> WebRegWrapper<'a> {
                     .to_uppercase(),
                 section_id: x.section_number.trim().to_string(),
                 section_code: x.sect_code.trim().to_string(),
-                instructor: x
-                    .person_full_name
-                    .split_once(';')
-                    .unwrap()
-                    .0
-                    .trim()
-                    .to_string(),
+                instructor: vec![self._get_instructor_name(&x.person_full_name)],
                 available_seats: max(x.avail_seat, 0),
                 enrolled_ct: x.enrolled_count,
                 total_seats: x.section_capacity,
@@ -538,13 +545,13 @@ impl<'a> WebRegWrapper<'a> {
                     subj_course_id: course_dept_id.clone(),
                     section_id: webreg_meeting.section_number.trim().to_string(),
                     section_code: webreg_meeting.sect_code.trim().to_string(),
-                    instructor: webreg_meeting
+                    instructor: vec![webreg_meeting
                         .person_full_name
                         .split_once(';')
                         .unwrap()
                         .0
                         .trim()
-                        .to_string(),
+                        .to_string()],
                     // Because it turns out that you can have negative available seats.
                     available_seats: max(webreg_meeting.avail_seat, 0),
                     enrolled_ct: webreg_meeting.enrolled_count,
@@ -641,6 +648,28 @@ impl<'a> WebRegWrapper<'a> {
 
         // Process each group
         for group in all_groups {
+            let instructors = self._get_all_instructors(
+                vec![
+                    group
+                        .main_meeting
+                        .iter()
+                        .map(|x| self._get_instructor_name(&x.person_full_name))
+                        .collect::<Vec<_>>(),
+                    group
+                        .other_special_meetings
+                        .iter()
+                        .map(|x| self._get_instructor_name(&x.person_full_name))
+                        .collect::<Vec<_>>(),
+                    group
+                        .child_meetings
+                        .iter()
+                        .map(|x| self._get_instructor_name(&x.person_full_name))
+                        .collect::<Vec<_>>(),
+                ]
+                .concat()
+                .into_iter(),
+            );
+
             let mut main_meetings: Vec<Meeting> = vec![];
             for meeting in &group.main_meeting {
                 let (m_m_type, m_days) = webreg_helper::parse_meeting_type_date(meeting);
@@ -693,13 +722,7 @@ impl<'a> WebRegWrapper<'a> {
                     section_id: group.main_meeting[0].section_number.trim().to_string(),
                     section_code: group.main_meeting[0].sect_code.trim().to_string(),
                     needs_waitlist: group.main_meeting[0].needs_waitlist == "Y",
-                    instructor: group.main_meeting[0]
-                        .person_full_name
-                        .split_once(';')
-                        .unwrap()
-                        .0
-                        .trim()
-                        .to_string(),
+                    instructor: instructors.clone(),
                     available_seats: max(group.main_meeting[0].avail_seat, 0),
                     enrolled_ct: group.main_meeting[0].enrolled_count,
                     total_seats: group.main_meeting[0].section_capacity,
@@ -737,13 +760,7 @@ impl<'a> WebRegWrapper<'a> {
                     subj_course_id: course_dept_id.clone(),
                     section_id: meeting.section_number.trim().to_string(),
                     section_code: meeting.sect_code.trim().to_string(),
-                    instructor: meeting
-                        .person_full_name
-                        .split_once(';')
-                        .unwrap()
-                        .0
-                        .trim()
-                        .to_string(),
+                    instructor: instructors.clone(),
                     available_seats: max(meeting.avail_seat, 0),
                     enrolled_ct: meeting.enrolled_count,
                     needs_waitlist: meeting.needs_waitlist == "Y",
@@ -1594,6 +1611,43 @@ impl<'a> WebRegWrapper<'a> {
             2 => format!(" {}", course_code),
             _ => course_code.to_string(),
         }
+    }
+
+    /// Gets the instructor's name.
+    ///
+    /// # Parameters
+    /// - `instructor_name`: The raw name.
+    ///
+    /// # Returns
+    /// The parsed instructor's name.
+    fn _get_instructor_name(&self, instructor_name: &str) -> String {
+        if instructor_name.contains(';') {
+            instructor_name
+                .split_once(';')
+                .unwrap()
+                .0
+                .trim()
+                .to_string()
+        } else {
+            instructor_name.trim().to_string()
+        }
+    }
+
+    /// Removes duplicate names from the list of instructors that are given.
+    ///
+    /// # Parameters
+    /// - `instructors`: An iterator of instructors, potentially with duplicates.
+    ///
+    /// # Returns
+    /// A vector of instructors, with no duplicates.
+    fn _get_all_instructors<I>(&self, instructors: I) -> Vec<String>
+    where
+        I: Iterator<Item = String>,
+    {
+        let mut all_inst = instructors.collect::<Vec<_>>();
+        all_inst.sort();
+        all_inst.dedup();
+        all_inst
     }
 }
 

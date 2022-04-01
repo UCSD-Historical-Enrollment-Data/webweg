@@ -37,19 +37,19 @@ async fn test_get_course_info() {
 
     let math_155a = math_155a.unwrap();
     // There are 2 sections of Math 155A: Section A01 and Section A02
-    assert_eq!(2, math_155a.len());
+    assert_eq!(3, math_155a.len());
     assert_eq!(
-        vec!["A01".to_string(), "A02".to_string()],
+        vec!["A01".to_string(), "A02".to_string(), "A03".to_string()],
         math_155a
             .iter()
             .map(|x| x.section_code.as_str())
             .collect::<Vec<_>>()
     );
-    // Each section has 35 seats.
-    assert_eq!(35, math_155a[0].total_seats);
-    assert_eq!(35, math_155a[1].total_seats);
+    // Each section has 36 seats.
+    assert_eq!(36, math_155a[0].total_seats);
+    assert_eq!(36, math_155a[1].total_seats);
     // The professor teaching it is Sam, Steven V.
-    assert_eq!("Buss, Samuel R", math_155a[0].instructor);
+    assert_eq!(vec!["Buss, Samuel R".to_string()], math_155a[0].instructor);
     // There are three meetings -- a lecture, discussion, and final
     assert_eq!(3, math_155a[0].meetings.len());
 
@@ -115,6 +115,44 @@ async fn test_get_course_info() {
     assert_eq!(59, fin.end_min);
 }
 
+/// This function tests the `get_course_info()` function, but specifically for courses which have
+/// multiple instructors, e.g. "Instructor Name" and "Staff"
+#[tokio::test]
+async fn test_instructor() {
+    let wrapper = WebRegWrapper::new(get_cookie_str(), TERM);
+    assert!(wrapper.is_valid().await);
+
+    let cse_130 = wrapper.get_course_info("cse", "130").await;
+    assert!(cse_130.is_ok());
+    let cse_130 = cse_130.unwrap();
+    assert_eq!(1, cse_130.len());
+    assert_eq!(
+        vec!["Polikarpova, Nadezhda".to_string(), "Staff".to_string()],
+        cse_130[0].instructor
+    );
+
+    let cse_100 = wrapper.get_course_info("cse", "100").await;
+    assert!(cse_100.is_ok());
+    let cse_100 = cse_100.unwrap();
+    assert_eq!(3, cse_100.len());
+
+    assert_eq!(
+        vec!["Sahoo, Debashis".to_string()],
+        cse_100[0].instructor
+    );
+
+    // Test both sections of 100
+    assert_eq!(
+        vec!["Cao, Yingjun".to_string(), "Staff".to_string()],
+        cse_100[1].instructor
+    );
+
+    assert_eq!(
+        vec!["Cao, Yingjun".to_string(), "Staff".to_string()],
+        cse_100[2].instructor
+    );
+}
+
 /// This function tests the `search_courses_detailed()` method with one section.
 #[tokio::test]
 async fn test_search_one_sec() {
@@ -135,7 +173,10 @@ async fn test_search_one_sec() {
     // As is the subject + course number
     assert_eq!("MATH 184", math_184[0].subj_course_id);
     // The instructor is Kane, Daniel Mertz
-    assert_eq!("Kane, Daniel Mertz", math_184[0].instructor);
+    assert_eq!(
+        vec!["Kane, Daniel Mertz".to_string()],
+        math_184[0].instructor
+    );
     // This is section A02
     assert_eq!("A02", math_184[0].section_code);
 
@@ -182,17 +223,20 @@ async fn test_search_mult_sec() {
     let lign_101 = lign_101.unwrap();
     // Start with CSE 110.
     assert_eq!("CSE 110", cse_110.subj_course_id);
-    assert_eq!("Politz, Joseph Gibbs", cse_110.instructor);
+    assert_eq!(vec!["Politz, Joseph Gibbs".to_string()], cse_110.instructor);
     assert_eq!("A51", cse_110.section_code);
 
     // Next is Math 180A
     assert_eq!("MATH 180A", math_180a.subj_course_id);
-    assert_eq!("Kolesnik, Brett T", math_180a.instructor);
+    assert_eq!(vec!["Kolesnik, Brett T".to_string()], math_180a.instructor);
     assert_eq!("A06", math_180a.section_code);
 
     // Last is LIGN 101
     assert_eq!("LIGN 101", lign_101.subj_course_id);
-    assert_eq!("Styler, William Francis", lign_101.instructor);
+    assert_eq!(
+        vec!["Styler, William Francis".to_string()],
+        lign_101.instructor
+    );
     assert_eq!("A01", lign_101.section_code);
 }
 
@@ -234,9 +278,36 @@ async fn test_adv_search() {
     assert!(all_courses.iter().all(|x| x.starts_with("CSE")));
 }
 
+/// This function tests very basic schedule stuff. Due to how much can change with the schedule,
+/// very minimal testing will be done; instead, numerous things will be printed, of which the user
+/// will need to manually check for themselves.
+#[tokio::test]
+async fn test_get_schedule() {
+    let wrapper = WebRegWrapper::new(get_cookie_str(), TERM);
+    assert!(wrapper.is_valid().await);
+
+    let schedule = wrapper.get_schedule(None).await;
+    // If you don't have a schedule, that's kind of a problem.
+    assert!(schedule.is_ok());
+    let schedule = schedule.unwrap();
+
+    // Test instructor display
+    for s in &schedule {
+        assert_eq!(
+            HashSet::<&String>::from_iter(s.instructor.iter()).len(),
+            s.instructor.len()
+        );
+    }
+
+    for s in schedule {
+        println!("{}", s.to_string());
+    }
+}
+
 /// This function tests changing the grading options. Note that it's not easy to
 /// programmatically validate that the functions work as expected.
 #[tokio::test]
+#[ignore = "Don't need to spam WebReg here."]
 async fn test_change_grade_options() {
     let wrapper = WebRegWrapper::new(get_cookie_str(), TERM);
     assert!(wrapper.is_valid().await);
