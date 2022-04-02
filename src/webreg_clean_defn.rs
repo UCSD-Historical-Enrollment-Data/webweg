@@ -103,7 +103,11 @@ pub enum MeetingDay {
 }
 
 impl Meeting {
-    /// Returns a flat string representation of this `Meeting`
+    /// Returns a flat string representation of this `Meeting`. One example of a flat string might
+    /// look like
+    /// ```txt
+    /// MWF LE 13:00 - 13:50 CENTR 115
+    /// ```
     ///
     /// # Returns
     /// A flat string representation of this `Meeting`. Useful for CSV files.
@@ -119,9 +123,12 @@ impl Meeting {
         s.push_str(self.meeting_type.as_str());
         s.push(' ');
         s.push_str(&format!(
-            "{}:{:02} - {}:{:02}",
+            "{}:{:02}-{}:{:02}",
             self.start_hr, self.start_min, self.end_hr, self.end_min
         ));
+
+        s.push(' ');
+        s.push_str(&format!("{} {}", self.building, self.room));
 
         s
     }
