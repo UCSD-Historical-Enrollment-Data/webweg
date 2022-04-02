@@ -70,7 +70,7 @@ async fn test_get_course_info() {
     assert!(fin.is_some());
     assert!(discussion.is_some());
 
-    // Test lecture: TuTh from 3:30p-4:50p at RWAC 0121
+    // Test lecture: TuTh from 3:30p-4:50p at CENTR 115
     let lecture = lecture.unwrap();
     let lec_time = match lecture.meeting_days {
         MeetingDay::Repeated(ref r) => r,
@@ -119,6 +119,8 @@ async fn test_get_course_info() {
 /// multiple instructors, e.g. "Instructor Name" and "Staff"
 #[tokio::test]
 async fn test_instructor() {
+    // Literally hours after I made this test, WebReg removed "Staff" from the courses I selected.
+    // Nice.
     let wrapper = WebRegWrapper::new(get_cookie_str(), TERM);
     assert!(wrapper.is_valid().await);
 
@@ -127,7 +129,7 @@ async fn test_instructor() {
     let cse_130 = cse_130.unwrap();
     assert_eq!(1, cse_130.len());
     assert_eq!(
-        vec!["Polikarpova, Nadezhda".to_string(), "Staff".to_string()],
+        vec!["Polikarpova, Nadezhda".to_string()],
         cse_130[0].instructor
     );
 
@@ -135,22 +137,10 @@ async fn test_instructor() {
     assert!(cse_100.is_ok());
     let cse_100 = cse_100.unwrap();
     assert_eq!(3, cse_100.len());
-
-    assert_eq!(
-        vec!["Sahoo, Debashis".to_string()],
-        cse_100[0].instructor
-    );
-
     // Test both sections of 100
-    assert_eq!(
-        vec!["Cao, Yingjun".to_string(), "Staff".to_string()],
-        cse_100[1].instructor
-    );
-
-    assert_eq!(
-        vec!["Cao, Yingjun".to_string(), "Staff".to_string()],
-        cse_100[2].instructor
-    );
+    assert_eq!(vec!["Sahoo, Debashis".to_string()], cse_100[0].instructor);
+    assert_eq!(vec!["Cao, Yingjun".to_string()], cse_100[1].instructor);
+    assert_eq!(vec!["Cao, Yingjun".to_string()], cse_100[2].instructor);
 }
 
 /// This function tests the `search_courses_detailed()` method with one section.

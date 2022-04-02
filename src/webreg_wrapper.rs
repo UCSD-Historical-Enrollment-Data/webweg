@@ -617,7 +617,9 @@ impl<'a> WebRegWrapper<'a> {
                 })
                 .for_each(|x| group.main_meeting.push(x));
 
-            assert!(!group.main_meeting.is_empty());
+            if group.main_meeting.is_empty() {
+                continue;
+            }
 
             // Want all sections with section code starting with the same letter as what
             // the main section code is. So, if main_id is A00, we want all sections that
