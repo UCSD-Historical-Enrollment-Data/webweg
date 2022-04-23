@@ -215,7 +215,10 @@ async fn test_search_mult_sec() {
     let lign_101 = lign_101.unwrap();
     // Start with CSE 110.
     assert_eq!("CSE 110", cse_110.subj_course_id);
-    assert_eq!(vec!["Politz, Joseph Gibbs".to_string()], cse_110.instructors);
+    assert_eq!(
+        vec!["Politz, Joseph Gibbs".to_string()],
+        cse_110.instructors
+    );
     assert_eq!("A51", cse_110.section_code);
 
     // Next is Math 180A
@@ -336,4 +339,53 @@ async fn test_change_grade_options() {
         .change_grading_option("084932", GradeOption::L)
         .await;
     assert!(test5.is_ok());
+}
+
+/// This function tests sections where there may be multiple instructors assigned to a non-lecture
+/// time.
+#[tokio::test]
+async fn test_other_instructors() {
+    let wrapper = WebRegWrapper::new(get_cookie_str(), TERM);
+    assert!(wrapper.is_valid().await);
+
+    let cse_30 = wrapper.get_course_info("cse", "30").await;
+    assert!(cse_30.is_ok());
+    let cse_30 = cse_30.unwrap();
+    assert_eq!(2, cse_30.len());
+    let cse_30_inst = vec!["Muller, P Keith".to_string()];
+    assert!(cse_30.iter().all(|x| x.instructors == cse_30_inst));
+    // CSE 30 doesn't have any other instructors for other sections.
+    assert!(cse_30[0]
+        .meetings
+        .iter()
+        .all(|x| x.other_instructors.is_empty()));
+
+    let psyc_194c = wrapper.get_course_info("psyc", "194c").await;
+    assert!(psyc_194c.is_ok());
+    let psyc_194c = psyc_194c.unwrap();
+    assert_eq!(22, psyc_194c.len());
+    let psyc_194c_inst = vec!["Heyman, Gail D.".to_string()];
+    assert!(psyc_194c.iter().all(|x| x.instructors == psyc_194c_inst));
+    // Ok, note that PSYC 194C has a lab. Each lab (except A01) is assigned to this professor +
+    // someone else. Check the labs first.
+    assert!(psyc_194c
+        .iter()
+        .filter(|s| s.section_code != "A01")
+        .all(|x| x
+            .meetings
+            .iter()
+            .filter(|m| m.meeting_type == "LA")
+            .all(|m| m.other_instructors.len() == 1)));
+    // Check the lectures next. Because the lectures are only taught by this professor,
+    // each meeting's instructors should be an empty vector
+    assert!(psyc_194c.iter().all(|x| x
+        .meetings
+        .iter()
+        .filter(|m| m.meeting_type == "LE")
+        .all(|m| m.other_instructors.is_empty())));
+    // Check the A01 lab. This section should have no other instructors for the lab meeting
+    // since the professor is assigned to both the lecture and the lab.
+    assert_eq!("A01", psyc_194c[0].section_code);
+    assert_eq!("LA", psyc_194c[0].meetings[1].meeting_type);
+    assert!(psyc_194c[0].meetings[1].other_instructors.is_empty());
 }

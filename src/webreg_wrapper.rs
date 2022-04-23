@@ -252,6 +252,7 @@ impl<'a> WebRegWrapper<'a> {
                     end_hr: main.end_time_hr,
                     building: main.bldg_code.trim().to_string(),
                     room: main.room_code.trim().to_string(),
+                    other_instructors: vec![],
                 });
             }
 
@@ -273,6 +274,7 @@ impl<'a> WebRegWrapper<'a> {
                     end_hr: x.end_time_hr,
                     building: x.bldg_code.trim().to_string(),
                     room: x.room_code.trim().to_string(),
+                    other_instructors: vec![],
                 })
                 .for_each(|meeting| all_meetings.push(meeting));
 
@@ -289,6 +291,7 @@ impl<'a> WebRegWrapper<'a> {
                     end_hr: x.end_time_hr,
                     building: x.bldg_code.trim().to_string(),
                     room: x.room_code.trim().to_string(),
+                    other_instructors: vec![],
                 })
                 .for_each(|meeting| all_meetings.push(meeting));
 
@@ -396,6 +399,7 @@ impl<'a> WebRegWrapper<'a> {
                     end_hr: sch_meetings[0].start_time_hr,
                     building: sch_meetings[0].bldg_code.trim().to_string(),
                     room: sch_meetings[0].room_code.trim().to_string(),
+                    other_instructors: vec![],
                 }],
             });
         }
@@ -529,7 +533,8 @@ impl<'a> WebRegWrapper<'a> {
         let course_dept_id =
             format!("{} {}", subject_code.trim(), course_code.trim()).to_uppercase();
 
-        // Process any "special" sections
+        // Process any "special" sections. Special sections are sections whose section code is just
+        // numbers, e.g. section 001.
         let mut sections: Vec<CourseSection> = vec![];
         let mut unprocessed_sections: Vec<RawWebRegMeeting> = vec![];
         for webreg_meeting in parsed {
@@ -567,6 +572,7 @@ impl<'a> WebRegWrapper<'a> {
                         meeting_days: m.1,
                         building: webreg_meeting.bldg_code.trim().to_string(),
                         room: webreg_meeting.room_code.trim().to_string(),
+                        other_instructors: vec![],
                     }],
                 });
 
@@ -650,7 +656,7 @@ impl<'a> WebRegWrapper<'a> {
 
         // Process each group
         for group in all_groups {
-            let instructors = self._get_all_instructors(
+            let base_instructors = self._get_all_instructors(
                 vec![
                     group
                         .main_meeting
@@ -680,6 +686,9 @@ impl<'a> WebRegWrapper<'a> {
                     start_min: meeting.start_time_min,
                     end_hr: meeting.end_time_hr,
                     end_min: meeting.end_time_min,
+                    // Main meetings should only ever have the base instructors. In other words,
+                    // the professor assigned to teach section X00 should be the only one here.
+                    other_instructors: vec![],
                 });
             }
 
@@ -697,6 +706,8 @@ impl<'a> WebRegWrapper<'a> {
                         start_min: x.start_time_min,
                         end_hr: x.end_time_hr,
                         end_min: x.end_time_min,
+                        // Same idea as with the justification above
+                        other_instructors: vec![],
                     }
                 })
                 .collect::<Vec<_>>();
@@ -718,7 +729,7 @@ impl<'a> WebRegWrapper<'a> {
                     section_id: group.main_meeting[0].section_number.trim().to_string(),
                     section_code: group.main_meeting[0].sect_code.trim().to_string(),
                     needs_waitlist: group.main_meeting[0].needs_waitlist == "Y",
-                    instructors: instructors.clone(),
+                    instructors: base_instructors.clone(),
                     available_seats: max(group.main_meeting[0].avail_seat, 0),
                     enrolled_ct: group.main_meeting[0].enrolled_count,
                     total_seats: group.main_meeting[0].section_capacity,
@@ -732,15 +743,17 @@ impl<'a> WebRegWrapper<'a> {
             // Hopefully these are discussions
             for meeting in group.child_meetings {
                 let (m_type, t_m_dats) = webreg_helper::parse_meeting_type_date(meeting);
-                let mut instructors = instructors.clone();
+                let mut other_instructors = vec![];
                 for instructor in self._get_instructor_names(&meeting.person_full_name) {
-                    if instructors.contains(&instructor) {
+                    if base_instructors.contains(&instructor) {
                         continue;
                     }
 
-                    instructors.push(instructor);
+                    other_instructors.push(instructor);
                 }
 
+                // Adding all of the main meetings to this meeting vector so we can also
+                // add section-specific ones as well
                 let mut all_meetings: Vec<Meeting> = vec![];
                 main_meetings
                     .iter()
@@ -754,6 +767,7 @@ impl<'a> WebRegWrapper<'a> {
                     end_hr: meeting.end_time_hr,
                     building: meeting.bldg_code.trim().to_string(),
                     room: meeting.room_code.trim().to_string(),
+                    other_instructors,
                 });
 
                 other_meetings
@@ -764,7 +778,7 @@ impl<'a> WebRegWrapper<'a> {
                     subj_course_id: course_dept_id.clone(),
                     section_id: meeting.section_number.trim().to_string(),
                     section_code: meeting.sect_code.trim().to_string(),
-                    instructors: instructors,
+                    instructors: base_instructors.clone(),
                     available_seats: max(meeting.avail_seat, 0),
                     enrolled_ct: meeting.enrolled_count,
                     needs_waitlist: meeting.needs_waitlist == "Y",
