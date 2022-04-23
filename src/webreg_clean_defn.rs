@@ -11,8 +11,9 @@ pub struct CourseSection {
     pub section_id: String,
     /// The section code. For example, `B01`.
     pub section_code: String,
-    /// The instructor.
-    pub instructor: Vec<String>,
+    /// The instructor(s) for this base section. Here, we define a base section to X00 (where X
+    /// can be any letter).
+    pub instructors: Vec<String>,
     /// The number of available seats. For example, suppose a section had 30 seats
     /// total and there are 5 people enrolled. Then, this will be `25`.
     pub available_seats: i64,
@@ -51,7 +52,7 @@ impl ToString for CourseSection {
             self.subj_course_id,
             self.section_code,
             self.section_id,
-            self.instructor.join(" & "),
+            self.instructors.join(" & "),
             self.available_seats,
             self.enrolled_ct,
             self.total_seats,
@@ -91,19 +92,36 @@ pub struct Meeting {
     /// The room number where this meeting will occur. For example, if the meeting is held in
     /// `CENTR 115`, then this would be `115`.
     pub room: String,
+    /// Any other instructors. Sometimes, there may be sections where a particular meeting (e.g.
+    /// a discussion section) is assigned to a different instructor. In this case, this vector
+    /// will list said names. Note that if a name appears in the base section's instructor list,
+    /// then it will not appear here.
+    pub other_instructors: Vec<String>,
 }
 
 /// An enum that represents the meeting days for a section meeting.
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum MeetingDay {
+    /// The meeting is repeated. In this case, each element in the vector will be one of the
+    /// following: `M`, `Tu`, `W`, `Th`, `F`, `Sa`, or `Su`.
     Repeated(Vec<String>),
+    /// The meeting occurs once. In this case, the string will just be the date representation
+    /// in the form `YYYY-MM-DD`.
     OneTime(String),
+    /// There is no meeting.
     None,
 }
 
 impl Meeting {
-    /// Returns a flat string representation of this `Meeting`
+    /// Returns a flat string representation of this `Meeting`. One example of a flat string might
+    /// look like
+    /// ```txt
+    /// MWF LE 13:00 - 13:50 CENTR 115 .. OTHER_INSTRUCTOR_1 & ... & OTHER_INSTRUCTOR_n
+    /// ```
+    ///
+    /// This flat string is generally useful when needing to store meeting data in a CSV or TSV
+    /// file.
     ///
     /// # Returns
     /// A flat string representation of this `Meeting`. Useful for CSV files.
@@ -119,9 +137,15 @@ impl Meeting {
         s.push_str(self.meeting_type.as_str());
         s.push(' ');
         s.push_str(&format!(
-            "{}:{:02} - {}:{:02}",
+            "{}:{:02}-{}:{:02}",
             self.start_hr, self.start_min, self.end_hr, self.end_min
         ));
+
+        s.push(' ');
+        s.push_str(&format!("{} {}", self.building, self.room));
+
+        s.push_str("..");
+        s.push_str(&format!("{}", self.other_instructors.join(" & ")));
 
         s
     }
@@ -140,8 +164,13 @@ impl ToString for Meeting {
             self.start_hr, self.start_min, self.end_hr, self.end_min
         );
         format!(
-            "\t[{}] {} at {} in {} {}",
-            self.meeting_type, meeting_days_display, time_range, self.building, self.room
+            "\t[{}] {} at {} in {} {} [{}]",
+            self.meeting_type,
+            meeting_days_display,
+            time_range,
+            self.building,
+            self.room,
+            self.other_instructors.join(" & ")
         )
     }
 }
