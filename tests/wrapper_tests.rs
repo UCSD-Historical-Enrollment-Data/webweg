@@ -1,3 +1,5 @@
+extern crate core;
+
 use std::collections::HashSet;
 use std::time::Duration;
 use tokio::time;
@@ -49,7 +51,7 @@ async fn test_get_course_info() {
     assert_eq!(36, math_155a[0].total_seats);
     assert_eq!(36, math_155a[1].total_seats);
     // The professor teaching it is Sam, Steven V.
-    assert_eq!(vec!["Buss, Samuel R".to_string()], math_155a[0].instructor);
+    assert_eq!(vec!["Buss, Samuel R".to_string()], math_155a[0].instructors);
     // There are three meetings -- a lecture, discussion, and final
     assert_eq!(3, math_155a[0].meetings.len());
 
@@ -130,7 +132,7 @@ async fn test_instructor() {
     assert_eq!(1, cse_130.len());
     assert_eq!(
         vec!["Polikarpova, Nadezhda".to_string()],
-        cse_130[0].instructor
+        cse_130[0].instructors
     );
 
     let cse_100 = wrapper.get_course_info("cse", "100").await;
@@ -138,9 +140,9 @@ async fn test_instructor() {
     let cse_100 = cse_100.unwrap();
     assert_eq!(3, cse_100.len());
     // Test both sections of 100
-    assert_eq!(vec!["Sahoo, Debashis".to_string()], cse_100[0].instructor);
-    assert_eq!(vec!["Cao, Yingjun".to_string()], cse_100[1].instructor);
-    assert_eq!(vec!["Cao, Yingjun".to_string()], cse_100[2].instructor);
+    assert_eq!(vec!["Sahoo, Debashis".to_string()], cse_100[0].instructors);
+    assert_eq!(vec!["Cao, Yingjun".to_string()], cse_100[1].instructors);
+    assert_eq!(vec!["Cao, Yingjun".to_string()], cse_100[2].instructors);
 }
 
 /// This function tests the `search_courses_detailed()` method with one section.
@@ -165,7 +167,7 @@ async fn test_search_one_sec() {
     // The instructor is Kane, Daniel Mertz
     assert_eq!(
         vec!["Kane, Daniel Mertz".to_string()],
-        math_184[0].instructor
+        math_184[0].instructors
     );
     // This is section A02
     assert_eq!("A02", math_184[0].section_code);
@@ -213,19 +215,19 @@ async fn test_search_mult_sec() {
     let lign_101 = lign_101.unwrap();
     // Start with CSE 110.
     assert_eq!("CSE 110", cse_110.subj_course_id);
-    assert_eq!(vec!["Politz, Joseph Gibbs".to_string()], cse_110.instructor);
+    assert_eq!(vec!["Politz, Joseph Gibbs".to_string()], cse_110.instructors);
     assert_eq!("A51", cse_110.section_code);
 
     // Next is Math 180A
     assert_eq!("MATH 180A", math_180a.subj_course_id);
-    assert_eq!(vec!["Kolesnik, Brett T".to_string()], math_180a.instructor);
+    assert_eq!(vec!["Kolesnik, Brett T".to_string()], math_180a.instructors);
     assert_eq!("A06", math_180a.section_code);
 
     // Last is LIGN 101
     assert_eq!("LIGN 101", lign_101.subj_course_id);
     assert_eq!(
         vec!["Styler, William Francis".to_string()],
-        lign_101.instructor
+        lign_101.instructors
     );
     assert_eq!("A01", lign_101.section_code);
 }

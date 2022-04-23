@@ -11,8 +11,8 @@ pub struct CourseSection {
     pub section_id: String,
     /// The section code. For example, `B01`.
     pub section_code: String,
-    /// The instructor.
-    pub instructor: Vec<String>,
+    /// The instructor(s).
+    pub instructors: Vec<String>,
     /// The number of available seats. For example, suppose a section had 30 seats
     /// total and there are 5 people enrolled. Then, this will be `25`.
     pub available_seats: i64,
@@ -51,7 +51,7 @@ impl ToString for CourseSection {
             self.subj_course_id,
             self.section_code,
             self.section_id,
-            self.instructor.join(" & "),
+            self.instructors.join(" & "),
             self.available_seats,
             self.enrolled_ct,
             self.total_seats,

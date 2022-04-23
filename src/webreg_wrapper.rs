@@ -218,7 +218,7 @@ impl<'a> WebRegWrapper<'a> {
             let instructors = self._get_all_instructors(
                 sch_meetings
                     .iter()
-                    .map(|x| self._get_instructor_name(&x.person_full_name)),
+                    .flat_map(|x| self._get_instructor_names(&x.person_full_name)),
             );
 
             // Literally all just to find the "main" lecture since webreg is inconsistent
@@ -369,7 +369,7 @@ impl<'a> WebRegWrapper<'a> {
                 instructor: self._get_all_instructors(
                     sch_meetings
                         .iter()
-                        .map(|x| self._get_instructor_name(&x.person_full_name)),
+                        .flat_map(|x| self._get_instructor_names(&x.person_full_name)),
                 ),
                 subject_code: sch_meetings[0].subj_code.trim().to_string(),
                 course_code: sch_meetings[0].course_code.trim().to_string(),
@@ -470,7 +470,7 @@ impl<'a> WebRegWrapper<'a> {
                     .to_uppercase(),
                 section_id: x.section_number.trim().to_string(),
                 section_code: x.sect_code.trim().to_string(),
-                instructor: vec![self._get_instructor_name(&x.person_full_name)],
+                instructors: self._get_instructor_names(&x.person_full_name),
                 available_seats: max(x.avail_seat, 0),
                 enrolled_ct: x.enrolled_count,
                 total_seats: x.section_capacity,
@@ -545,7 +545,7 @@ impl<'a> WebRegWrapper<'a> {
                     subj_course_id: course_dept_id.clone(),
                     section_id: webreg_meeting.section_number.trim().to_string(),
                     section_code: webreg_meeting.sect_code.trim().to_string(),
-                    instructor: vec![webreg_meeting
+                    instructors: vec![webreg_meeting
                         .person_full_name
                         .split_once(';')
                         .unwrap()
@@ -655,17 +655,12 @@ impl<'a> WebRegWrapper<'a> {
                     group
                         .main_meeting
                         .iter()
-                        .map(|x| self._get_instructor_name(&x.person_full_name))
+                        .flat_map(|x| self._get_instructor_names(&x.person_full_name))
                         .collect::<Vec<_>>(),
                     group
                         .other_special_meetings
                         .iter()
-                        .map(|x| self._get_instructor_name(&x.person_full_name))
-                        .collect::<Vec<_>>(),
-                    group
-                        .child_meetings
-                        .iter()
-                        .map(|x| self._get_instructor_name(&x.person_full_name))
+                        .flat_map(|x| self._get_instructor_names(&x.person_full_name))
                         .collect::<Vec<_>>(),
                 ]
                 .concat()
@@ -693,7 +688,6 @@ impl<'a> WebRegWrapper<'a> {
                 .into_iter()
                 .map(|x| {
                     let (o_m_type, o_days) = webreg_helper::parse_meeting_type_date(x);
-
                     Meeting {
                         meeting_type: o_m_type.to_string(),
                         meeting_days: o_days,
@@ -724,7 +718,7 @@ impl<'a> WebRegWrapper<'a> {
                     section_id: group.main_meeting[0].section_number.trim().to_string(),
                     section_code: group.main_meeting[0].sect_code.trim().to_string(),
                     needs_waitlist: group.main_meeting[0].needs_waitlist == "Y",
-                    instructor: instructors.clone(),
+                    instructors: instructors.clone(),
                     available_seats: max(group.main_meeting[0].avail_seat, 0),
                     enrolled_ct: group.main_meeting[0].enrolled_count,
                     total_seats: group.main_meeting[0].section_capacity,
@@ -738,6 +732,14 @@ impl<'a> WebRegWrapper<'a> {
             // Hopefully these are discussions
             for meeting in group.child_meetings {
                 let (m_type, t_m_dats) = webreg_helper::parse_meeting_type_date(meeting);
+                let mut instructors = instructors.clone();
+                for instructor in self._get_instructor_names(&meeting.person_full_name) {
+                    if instructors.contains(&instructor) {
+                        continue;
+                    }
+
+                    instructors.push(instructor);
+                }
 
                 let mut all_meetings: Vec<Meeting> = vec![];
                 main_meetings
@@ -762,7 +764,7 @@ impl<'a> WebRegWrapper<'a> {
                     subj_course_id: course_dept_id.clone(),
                     section_id: meeting.section_number.trim().to_string(),
                     section_code: meeting.sect_code.trim().to_string(),
-                    instructor: instructors.clone(),
+                    instructors: instructors,
                     available_seats: max(meeting.avail_seat, 0),
                     enrolled_ct: meeting.enrolled_count,
                     needs_waitlist: meeting.needs_waitlist == "Y",
@@ -1615,24 +1617,26 @@ impl<'a> WebRegWrapper<'a> {
         }
     }
 
-    /// Gets the instructor's name.
+    /// Gets the instructor's names.
     ///
     /// # Parameters
     /// - `instructor_name`: The raw name.
     ///
     /// # Returns
-    /// The parsed instructor's name.
-    fn _get_instructor_name(&self, instructor_name: &str) -> String {
-        if instructor_name.contains(';') {
-            instructor_name
-                .split_once(';')
-                .unwrap()
-                .0
-                .trim()
-                .to_string()
-        } else {
-            instructor_name.trim().to_string()
-        }
+    /// The parsed instructor's names, as a vector.
+    fn _get_instructor_names(&self, instructor_name: &str) -> Vec<String> {
+        // The instructor string is in the form
+        // name1    ;pid1:name2      ;pid2:...:nameN      ;pidN
+        instructor_name
+            .split(':')
+            .map(|x| {
+                if x.contains(';') {
+                    x.split_once(';').unwrap().0.trim().to_string()
+                } else {
+                    x.trim().to_string()
+                }
+            })
+            .collect()
     }
 
     /// Removes duplicate names from the list of instructors that are given.
