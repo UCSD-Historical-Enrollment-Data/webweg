@@ -145,7 +145,7 @@ impl Meeting {
         s.push_str(&format!("{} {}", self.building, self.room));
 
         s.push_str("..");
-        s.push_str(&format!("{}", self.other_instructors.join(" & ")));
+        s.push_str(&self.other_instructors.join(" & "));
 
         s
     }
@@ -179,8 +179,8 @@ impl ToString for Meeting {
 /// are enrolled in, waitlisted for, or planned.
 #[derive(Debug, Clone, Serialize)]
 pub struct ScheduledSection {
-    /// The section number, for example `79903`.
-    pub section_number: String,
+    /// The section ID, for example `79903`.
+    pub section_id: String,
     /// The subject code. For example, if this represents `CSE 100`, then this would be `CSE`.
     pub subject_code: String,
     /// The subject code. For example, if this represents `CSE 100`, then this would be `100`.
@@ -223,7 +223,7 @@ impl ToString for ScheduledSection {
         let mut s = format!(
             "[{} / {}] {} ({} {}) with {} - {} ({} Units, {} Grading, Avail.: {}, Enroll.: {}, Total: {})\n",
             self.section_code,
-            self.section_number,
+            self.section_id,
             self.course_title,
             self.subject_code,
             self.course_code,

@@ -60,9 +60,9 @@ pub struct RawWebRegMeeting {
     #[serde(rename = "SCTN_ENRLT_QTY")]
     pub enrolled_count: i64,
 
-    /// The section number. Each section has a unique number identifier.
+    /// The section ID. Each section has a unique number identifier.
     #[serde(rename = "SECTION_NUMBER")]
-    pub section_number: String,
+    pub section_id: String,
 
     /// The number of students currently on the waitlist.
     #[serde(rename = "COUNT_ON_WAITLIST")]
@@ -151,9 +151,9 @@ pub struct RawWebRegMeeting {
 /// one meeting per week (so, for example, a MWF lecture would have 3 entries).
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RawScheduledMeeting {
-    /// The section number. Each section has a unique number identifier.
+    /// The section ID. Each section has a unique number identifier.
     #[serde(rename = "SECTION_HEAD")]
-    pub section_number: i64,
+    pub section_id: i64,
 
     /// Number of units that this class is being taken for (e.g. 4.00)
     #[serde(rename = "SECT_CREDIT_HRS")]

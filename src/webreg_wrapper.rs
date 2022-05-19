@@ -63,33 +63,39 @@ pub struct WebRegWrapper<'a> {
 }
 
 impl<'a> WebRegWrapper<'a> {
-    /// Creates a new instance of the `WebRegWrapper`.
+    /// Creates a new instance of the `WebRegWrapper` with the specified `Client`, cookies, and
+    /// term.
+    ///
+    /// After logging into WebReg, the cookies will be authenticated, but won't be associated
+    /// with any specific term until you select a term.
+    ///
+    /// Once you select a term, your cookies will be "bound" to that term. This is especially
+    /// important, since providing cookies to a non-matching terms (e.g., you provided cookies
+    /// associated with SP22, but provided the term FA22) will result in cryptic error messages.
+    ///
+    /// You are expected to provide a
+    /// [`reqwest::Client`](https://docs.rs/reqwest/latest/reqwest/struct.Client.html). This
+    /// can be as simple as the default client (`Client::new()`), or can be customized to suit
+    /// your needs (e.g., by adding a timeout).
     ///
     /// # Parameters
+    /// - `client`: The `reqwest` client.
     /// - `cookies`: The cookies from your session of WebReg.
-    /// - `term`: The term.
+    /// - `term`: The term *corresponding* to your `cookies`.
     ///
     /// # Returns
-    /// The new instance.
-    pub fn new(cookies: String, term: &'a str) -> Self {
-        WebRegWrapper {
-            cookies,
-            client: Client::new(),
-            term,
-        }
-    }
-
-    /// Creates a new instance of the `WebRegWrapper` with a custom client.
+    /// The new instance of the `WebRegWrapper`.
     ///
-    /// # Parameters
-    /// - `cookies`: The cookies from your session of WebReg.
-    /// - `term`: The term.
-    /// - `client`: The client.
+    /// # Example
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::webreg_wrapper::WebRegWrapper;
     ///
-    /// # Returns
-    /// The new instance.
-    pub fn new_with_client(cookies: String, term: &'a str, client: Client) -> Self {
-        WebRegWrapper {
+    /// let client = Client::new();
+    /// let wrapper = WebRegWrapper::new(client, "my cookies".to_string(), "FA22");
+    /// ```
+    pub fn new(client: Client, cookies: String, term: &'a str) -> Self {
+        Self {
             cookies,
             client,
             term,
@@ -98,16 +104,32 @@ impl<'a> WebRegWrapper<'a> {
 
     /// Sets the cookies to the new, specified cookies.
     ///
+    /// This might be useful if you want to use the existing wrapper but need to change the
+    /// cookies.
+    ///
     /// # Parameters
     /// - `new_cookies`: The new cookies.
     pub fn set_cookies(&mut self, new_cookies: String) {
         self.cookies = new_cookies;
     }
 
-    /// Checks if the current WebReg instance is valid.
+    /// Checks if the current WebReg instance is valid. Specifically, this will check if you
+    /// are logged in.
     ///
     /// # Returns
     /// `true` if the instance is valid and `false` otherwise.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::webreg_wrapper::WebRegWrapper;
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
+    /// assert!(wrapper.is_valid().await);
+    /// # }
+    /// ```
     pub async fn is_valid(&self) -> bool {
         let res = self
             .client
@@ -127,6 +149,18 @@ impl<'a> WebRegWrapper<'a> {
     ///
     /// # Returns
     /// The name of the person, or an empty string if the cookies that were given were invalid.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::webreg_wrapper::WebRegWrapper;
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
+    /// assert_eq!("Your name here", wrapper.get_account_name().await);
+    /// # }
+    /// ```
     pub async fn get_account_name(&self) -> Cow<'a, str> {
         let res = self
             .client
@@ -156,9 +190,45 @@ impl<'a> WebRegWrapper<'a> {
     /// to your main schedule.
     ///
     /// # Returns
-    /// A result that can either be one of:
-    /// - A vector of sections that appear in your schedule.
-    /// - Or, the error message.
+    /// Either a vector of sections that appear in your schedule, or an error message if something
+    /// went wrong.
+    ///
+    /// # Examples
+    ///
+    /// Getting the default schedule.
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::webreg_wrapper::WebRegWrapper;
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
+    /// // Pass in "None" for the default.
+    /// let schedule = wrapper.get_schedule(None).await;
+    /// match schedule {
+    ///     Ok(s) => s.iter().for_each(|sec| println!("{}", sec.to_string())),
+    ///     Err(e) => eprintln!("An error occurred! {}", e)
+    /// }
+    ///
+    /// # }
+    /// ```
+    ///
+    /// Getting the schedule with name "`Other Schedule`."
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::webreg_wrapper::WebRegWrapper;
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
+    /// // Pass in "None" for the default.
+    /// let schedule = wrapper.get_schedule(Some("Other Schedule")).await;
+    /// match schedule {
+    ///     Ok(s) => s.iter().for_each(|sec| println!("{}", sec.to_string())),
+    ///     Err(e) => eprintln!("An error occurred! {}", e)
+    /// }
+    /// # }
+    /// ```
     pub async fn get_schedule(
         &self,
         schedule_name: Option<&str>,
@@ -325,7 +395,7 @@ impl<'a> WebRegWrapper<'a> {
             };
 
             schedule.push(ScheduledSection {
-                section_number: sch_meetings[0].section_number.to_string(),
+                section_id: sch_meetings[0].section_id.to_string(),
                 instructor: instructors.clone(),
                 subject_code: sch_meetings[0].subj_code.trim().to_string(),
                 course_code: sch_meetings[0].course_code.trim().to_string(),
@@ -368,7 +438,7 @@ impl<'a> WebRegWrapper<'a> {
             let enrolled_count = sch_meetings[0].enrolled_count.unwrap_or(-1);
 
             schedule.push(ScheduledSection {
-                section_number: sch_meetings[0].section_number.to_string(),
+                section_id: sch_meetings[0].section_id.to_string(),
                 instructor: self._get_all_instructors(
                     sch_meetings
                         .iter()
@@ -425,9 +495,26 @@ impl<'a> WebRegWrapper<'a> {
     /// would put `100B`.
     ///
     /// # Returns
-    /// A result containing either:
-    /// - A vector with all possible sections that match the given subject code & course code.
-    /// - Or the error that occurred.
+    /// Either a vector with all sections that match the given subject code & course code, or an
+    /// error if one occurred.
+    ///
+    /// # Example
+    /// Suppose we wanted to find all sections of CSE 101 for the sole purpose of seeing how
+    /// many people are enrolled.
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::webreg_wrapper::WebRegWrapper;
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
+    /// let sections = wrapper.get_enrollment_count("CSE", "101").await;
+    /// match sections {
+    ///     Ok(s) => s.iter().for_each(|sec| println!("{}", sec.to_string())),
+    ///     Err(e) => eprintln!("An error occurred! {}", e)
+    /// }
+    /// # }
+    /// ```
     pub async fn get_enrollment_count(
         &self,
         subject_code: &str,
@@ -468,11 +555,12 @@ impl<'a> WebRegWrapper<'a> {
 
         Ok(meetings_to_parse
             .into_iter()
+            // Only want available sections, AC = displayed
             .filter(|x| x.display_type == "AC")
             .map(|x| CourseSection {
                 subj_course_id: format!("{} {}", subject_code.trim(), course_code.trim())
                     .to_uppercase(),
-                section_id: x.section_number.trim().to_string(),
+                section_id: x.section_id.trim().to_string(),
                 section_code: x.sect_code.trim().to_string(),
                 instructors: self._get_instructor_names(&x.person_full_name),
                 available_seats: max(x.avail_seat, 0),
@@ -502,6 +590,24 @@ impl<'a> WebRegWrapper<'a> {
     /// A result containing either:
     /// - A vector with all possible sections that match the given subject code & course code.
     /// - Or the error that occurred.
+    ///
+    /// # Example
+    /// Let's suppose we wanted to find all sections of CSE 105. This is how we would do this.
+    /// Note that this will contain a lot of information.
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::webreg_wrapper::WebRegWrapper;
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
+    /// let sections = wrapper.get_course_info("CSE", "105").await;
+    /// match sections {
+    ///     Ok(s) => s.iter().for_each(|sec| println!("{}", sec.to_string())),
+    ///     Err(e) => eprintln!("An error occurred! {}", e)
+    /// }
+    /// # }
+    /// ```
     pub async fn get_course_info(
         &self,
         subject_code: &str,
@@ -548,7 +654,7 @@ impl<'a> WebRegWrapper<'a> {
 
                 sections.push(CourseSection {
                     subj_course_id: course_dept_id.clone(),
-                    section_id: webreg_meeting.section_number.trim().to_string(),
+                    section_id: webreg_meeting.section_id.trim().to_string(),
                     section_code: webreg_meeting.sect_code.trim().to_string(),
                     instructors: vec![webreg_meeting
                         .person_full_name
@@ -726,7 +832,7 @@ impl<'a> WebRegWrapper<'a> {
                 // Just lecture = enrollment stats will be reflected properly on this meeting.
                 sections.push(CourseSection {
                     subj_course_id: course_dept_id.clone(),
-                    section_id: group.main_meeting[0].section_number.trim().to_string(),
+                    section_id: group.main_meeting[0].section_id.trim().to_string(),
                     section_code: group.main_meeting[0].sect_code.trim().to_string(),
                     needs_waitlist: group.main_meeting[0].needs_waitlist == "Y",
                     instructors: base_instructors.clone(),
@@ -776,7 +882,7 @@ impl<'a> WebRegWrapper<'a> {
 
                 sections.push(CourseSection {
                     subj_course_id: course_dept_id.clone(),
-                    section_id: meeting.section_number.trim().to_string(),
+                    section_id: meeting.section_id.trim().to_string(),
                     section_code: meeting.sect_code.trim().to_string(),
                     instructors: base_instructors.clone(),
                     available_seats: max(meeting.avail_seat, 0),
@@ -794,18 +900,98 @@ impl<'a> WebRegWrapper<'a> {
 
     /// Gets all courses that are available. This searches for all courses via Webreg's menu, but
     /// then also searches each course found for specific details. This essentially calls the two
-    /// functions `search_courses` and `get_course_info`.
-    ///
-    /// Note: This function call will make *many* API requests. Thus, searching for many classes
-    /// is not recommended as you may get rate-limited.
+    /// functions [`WebRegWrapper::search_courses`] and [`WebRegWrapper::get_course_info`].
     ///
     /// # Parameters
     /// - `filter_by`: The request filter.
     ///
     /// # Returns
-    /// A result that can return one of:
-    /// - A vector consisting of all courses that are available, with detailed information.
-    /// - Or, the error that was encoutnered.
+    /// Either a vector consisting of all courses that are available, with detailed information,
+    /// or the error that was encountered.
+    ///
+    /// # Warning
+    /// This function call will make *many* API requests. Thus, searching for many classes is not
+    /// recommended as you may get rate-limited.
+    ///
+    /// # Example
+    /// Searching for a section by section ID; in this example, we're looking for one section
+    /// with the section ID `1234567`. If this is successful, then we will get a vector back
+    /// with *one* element (since section IDs are unique).
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::webreg_wrapper::{SearchType, WebRegWrapper};
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
+    /// let res = wrapper.search_courses_detailed(SearchType::BySection("1234567")).await;
+    ///
+    /// // We should only find one section at most.
+    /// if let Ok(results) = res {
+    ///     assert!(results.len() <= 1);
+    /// }
+    /// # }
+    /// ```
+    ///
+    /// Searching for multiple sections by an array (slice) of IDs. If there are `N` section IDs
+    /// provided, then you should get *at most* `N` results back. In this example, we're looking
+    /// for any sections with IDs `1234567` or `115123` or `2135`.
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::webreg_wrapper::{SearchType, WebRegWrapper};
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
+    /// let res = wrapper
+    ///     .search_courses_detailed(SearchType::ByMultipleSections(&[
+    ///         "1234567", "115123", "2135",
+    ///     ]))
+    ///     .await;
+    ///
+    /// // We should only find 3 sections at most.
+    /// if let Ok(results) = res {
+    ///     assert!(results.len() <= 1);
+    /// }
+    /// # }
+    /// ```
+    ///
+    /// Searching by many different options. In this example, we're searching for courses that are:
+    /// - either upper-division or lower-division,
+    /// - offered in the CSE or MATH department,
+    /// - on Monday, Wednesday, and Friday,
+    /// - starts no earlier than 10:00am, *and*
+    /// - ends no later than 5:30pm.
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::webreg_wrapper::{
+    ///     CourseLevelFilter, DayOfWeek, SearchRequestBuilder, SearchType, WebRegWrapper
+    /// };
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
+    /// let res = wrapper
+    ///     .search_courses_detailed(SearchType::Advanced(
+    ///         &SearchRequestBuilder::new()
+    ///             .filter_courses_by(CourseLevelFilter::LowerDivision)
+    ///             .filter_courses_by(CourseLevelFilter::UpperDivision)
+    ///             .add_department("CSE")
+    ///             .add_department("MATH")
+    ///             .apply_days(DayOfWeek::Monday)
+    ///             .apply_days(DayOfWeek::Wednesday)
+    ///             .apply_days(DayOfWeek::Friday)
+    ///             .set_start_time(10, 0)
+    ///             .set_end_time(12 + 5, 30)
+    ///     ))
+    ///     .await;
+    ///
+    /// // Who knows how many sections we'll find?
+    /// if let Ok(results) = res {
+    ///     assert!(results.len() <= 1);
+    /// }
+    /// # }
+    /// ```
     pub async fn search_courses_detailed(
         &self,
         filter_by: SearchType<'_>,
@@ -875,7 +1061,11 @@ impl<'a> WebRegWrapper<'a> {
     /// - `filter_by`: The request filter.
     ///
     /// # Returns
-    /// A vector consisting of all courses that are available.
+    /// A vector consisting of all courses that are available. Note that the data that is returned
+    /// is directly from WebReg's API, so care will need to be taken to clean the resulting data.
+    ///
+    /// # Example
+    /// Please see [`WebWegWrapper::search_courses_detailed`] for examples.
     pub async fn search_courses(
         &self,
         filter_by: SearchType<'_>,
@@ -1030,6 +1220,27 @@ impl<'a> WebRegWrapper<'a> {
     ///
     /// # Returns
     /// `true` if the email was sent successfully and `false` otherwise.
+    ///
+    /// # Example
+    /// This will send an email to yourself with the content specified as the string shown below.
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::webreg_wrapper::WebRegWrapper;
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
+    /// let res = wrapper
+    ///     .send_email_to_self("Hello, world! This will be sent to you via email.")
+    ///     .await;
+    ///
+    /// if res {
+    ///     println!("Sent successfully.");
+    /// } else {
+    ///     eprintln!("Failed to send.");
+    /// }
+    /// # }
+    /// ```
     pub async fn send_email_to_self(&self, email_content: &str) -> bool {
         let res = self
             .client
@@ -1052,10 +1263,10 @@ impl<'a> WebRegWrapper<'a> {
         }
     }
 
-    /// Changes the grading option for the class corresponding to the section number.
+    /// Changes the grading option for the class corresponding to the section ID.
     ///
     /// # Parameters
-    /// - `section_number`: The section number corresponding to the class that you want to change
+    /// - `section_id`: The section ID corresponding to the class that you want to change
     /// the grading option for.
     /// - `new_grade_opt`: The new grading option. This must either be `L` (letter),
     /// `P` (pass/no pass), or `S` (satisfactory/unsatisfactory), and is enforced via an enum.
@@ -1063,9 +1274,27 @@ impl<'a> WebRegWrapper<'a> {
     /// # Returns
     /// `true` if the process succeeded, or a string containing the error message from WebReg if
     /// something wrong happened.
+    ///
+    /// # Example
+    /// Changing the section associated with section ID `12345` to letter grading option.
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::webreg_wrapper::{GradeOption, WebRegWrapper};
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
+    /// let res = wrapper.change_grading_option("12345", GradeOption::L).await;
+    ///
+    /// match res {
+    ///     Ok(_) => println!("Success!"),
+    ///     Err(e) => eprintln!("Something went wrong: {}", e)
+    /// }
+    /// # }
+    /// ```
     pub async fn change_grading_option(
         &self,
-        section_number: &str,
+        section_id: &str,
         new_grade_opt: GradeOption,
     ) -> Output<'a, bool> {
         let new_grade_opt = match new_grade_opt {
@@ -1075,8 +1304,8 @@ impl<'a> WebRegWrapper<'a> {
         };
 
         // "Slice" any zeros off of the left-most side of the string. We need to do this
-        // because, when comparing section numbers in the schedule, WebReg gives us the
-        // section numbers as integers; however, for the rest of the API, it's given as a
+        // because, when comparing section IDs in the schedule, WebReg gives us the
+        // section IDs as integers; however, for the rest of the API, it's given as a
         // string.
         //
         // Essentially, this means that, while most of WebReg's API will take `"079911"` as
@@ -1085,10 +1314,10 @@ impl<'a> WebRegWrapper<'a> {
         // convert this integer to a string, e.g. `79911` -> `"79911"` and return that along
         // with the other parsed info for each scheduled section.
         //
-        // So, we need to slice off any 0s from the input parameter `section_number` to account
+        // So, we need to slice off any 0s from the input parameter `section_id` to account
         // for this.
         let mut left_idx = 0;
-        for c in section_number.chars() {
+        for c in section_id.chars() {
             if c != '0' {
                 break;
             }
@@ -1102,7 +1331,7 @@ impl<'a> WebRegWrapper<'a> {
             .await
             .unwrap_or_default()
             .into_iter()
-            .find(|x| x.section_number == section_number[left_idx..]);
+            .find(|x| x.section_id == section_id[left_idx..]);
 
         if poss_class.is_none() {
             return Err("Class not found.".into());
@@ -1110,7 +1339,7 @@ impl<'a> WebRegWrapper<'a> {
 
         // don't care about previous poss_class
         let poss_class = poss_class.unwrap();
-        let sec_id = poss_class.section_number.to_string();
+        let sec_id = poss_class.section_id.to_string();
         let units = poss_class.units.to_string();
 
         self._process_post_response(
@@ -1140,15 +1369,47 @@ impl<'a> WebRegWrapper<'a> {
     /// # Parameters
     /// - `plan_options`: Information for the course that you want to plan.
     /// - `validate`: Whether to validate your planning of this course beforehand.
-    /// **WARNING:** setting this to `false` can cause issues. For example, when this is `false`,
-    /// you will be able to plan courses with more units than allowed (e.g. 42 units), set the
-    /// grading option to one that you are not allowed to use (e.g. S/U as an undergraduate), and
-    /// only enroll in specific components of a section (e.g. just the discussion section). Some of
-    /// these options can visually break WebReg (e.g. Remove/Enroll button will not appear).
     ///
     /// # Returns
     /// `true` if the process succeeded, or a string containing the error message from WebReg if
     /// something wrong happened.
+    ///
+    /// # Warning
+    /// Setting the `validate` parameter to `false` can cause issues. For example, when this is
+    /// `false`, you will be able to plan courses with more units than allowed (e.g. 42 units), set
+    /// the rading option to one that you are not allowed to use (e.g. S/U as an undergraduate),
+    /// and only enroll in specific components of a section (e.g. just the discussion section).
+    /// Some of these options can visually break WebReg (e.g. Remove/Enroll button will not appear).
+    ///
+    /// # Example
+    /// Here, we will add the course `CSE 100`, which has section ID `079911` and section code
+    /// `A01`, to our plan.
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::webreg_wrapper::{GradeOption, PlanAdd, WebRegWrapper};
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
+    ///
+    /// let res = wrapper.add_to_plan(PlanAdd {
+    ///     subject_code: "CSE",
+    ///     course_code: "100",
+    ///     section_id: "079911",
+    ///     section_code: "A01",
+    ///     // Using S/U grading.
+    ///     grading_option: Some(GradeOption::S),
+    ///     // Put in default schedule
+    ///     schedule_name: None,
+    ///     unit_count: 4
+    /// }, true).await;
+    ///
+    /// match res {
+    ///     Ok(o) => println!("{}", if o { "Successful" } else { "Unsuccessful" }),
+    ///     Err(e) => eprintln!("{}", e),
+    /// };
+    /// # }
+    /// ```
     pub async fn add_to_plan(&self, plan_options: PlanAdd<'_>, validate: bool) -> Output<'a, bool> {
         let u = plan_options.unit_count.to_string();
         let crsc_code = self._get_formatted_course_code(plan_options.course_code);
@@ -1162,7 +1423,7 @@ impl<'a> WebRegWrapper<'a> {
                 self.client
                     .post(PLAN_EDIT)
                     .form(&[
-                        ("section", &*plan_options.section_number),
+                        ("section", &*plan_options.section_id),
                         ("subjcode", &*plan_options.subject_code),
                         ("crsecode", &*crsc_code),
                         ("termcode", self.term),
@@ -1182,13 +1443,17 @@ impl<'a> WebRegWrapper<'a> {
                 .form(&[
                     ("subjcode", &*plan_options.subject_code),
                     ("crsecode", &*crsc_code),
-                    ("sectnum", &*plan_options.section_number),
+                    ("sectnum", &*plan_options.section_id),
                     ("sectcode", &*plan_options.section_code),
                     ("unit", &*u),
                     (
                         "grade",
                         match plan_options.grading_option {
-                            Some(r) if r == "L" || r == "P" || r == "S" => r,
+                            Some(r) => match r {
+                                GradeOption::L => "L",
+                                GradeOption::S => "S",
+                                GradeOption::P => "P",
+                            },
                             _ => "L",
                         },
                     ),
@@ -1212,22 +1477,39 @@ impl<'a> WebRegWrapper<'a> {
     /// Allows you to unplan a course.
     ///
     /// # Parameters
-    /// - `section_num`: The section number.
+    /// - `section_id`: The section ID.
     /// - `schedule_name`: The schedule name where the course should be unplanned from.
     ///
     /// # Returns
     /// `true` if the process succeeded, or a string containing the error message from WebReg if
     /// something wrong happened.
+    ///
+    /// # Example
+    /// Here, we will remove the planned course with section ID `079911` from our default schedule.
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::webreg_wrapper::{GradeOption, WebRegWrapper};
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
+    /// let res = wrapper.remove_from_plan("079911", None).await;
+    /// match res {
+    ///     Ok(o) => println!("{}", if o { "Successful" } else { "Unsuccessful" }),
+    ///     Err(e) => eprintln!("{}", e),
+    /// };
+    /// # }
+    /// ```
     pub async fn remove_from_plan(
         &self,
-        section_num: &str,
+        section_id: &str,
         schedule_name: Option<&'a str>,
     ) -> Output<'a, bool> {
         self._process_post_response(
             self.client
                 .post(PLAN_REMOVE)
                 .form(&[
-                    ("sectnum", section_num),
+                    ("sectnum", section_id),
                     ("termcode", self.term),
                     ("schedname", schedule_name.unwrap_or(DEFAULT_SCHEDULE_NAME)),
                 ])
@@ -1252,6 +1534,40 @@ impl<'a> WebRegWrapper<'a> {
     /// # Returns
     /// `true` if the process succeeded, or a string containing the error message from WebReg if
     /// something wrong happened.
+    ///
+    /// # Example
+    /// Here, we will enroll in the course with section ID `078616`, and with the default grading
+    /// option and unit count.
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::webreg_wrapper::{EnrollWaitAdd, WebRegWrapper};
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
+    ///
+    /// let add_res = wrapper
+    ///     .add_section(
+    ///         // Use true here since we want to enroll (not waitlist). Note that this might
+    ///         // result in an `Err` being returned if you can't enroll.
+    ///         true,
+    ///         EnrollWaitAdd {
+    ///             section_id: "078616",
+    ///             // Use default grade option
+    ///             grading_option: None,
+    ///             // Use default unit count
+    ///             unit_count: None,
+    ///         },
+    ///         true,
+    ///     )
+    ///     .await;
+    ///
+    /// match add_res {
+    ///     Ok(o) => println!("{}", if o { "Successful" } else { "Unsuccessful" }),
+    ///     Err(e) => eprintln!("{}", e),
+    /// };
+    /// # }
+    /// ```
     pub async fn add_section(
         &self,
         is_enroll: bool,
@@ -1276,7 +1592,7 @@ impl<'a> WebRegWrapper<'a> {
                     .post(base_edit_url)
                     .form(&[
                         // These are required
-                        ("section", &*enroll_options.section_number),
+                        ("section", &*enroll_options.section_id),
                         ("termcode", self.term),
                         // These are optional.
                         ("subjcode", ""),
@@ -1295,14 +1611,18 @@ impl<'a> WebRegWrapper<'a> {
                 .post(base_reg_url)
                 .form(&[
                     // These are required
-                    ("section", &*enroll_options.section_number),
+                    ("section", &*enroll_options.section_id),
                     ("termcode", self.term),
                     // These are optional.
                     ("unit", &*u),
                     (
                         "grade",
                         match enroll_options.grading_option {
-                            Some(r) if r == "L" || r == "P" || r == "S" => r,
+                            Some(r) => match r {
+                                GradeOption::L => "L",
+                                GradeOption::S => "S",
+                                GradeOption::P => "P",
+                            },
                             _ => "",
                         },
                     ),
@@ -1321,7 +1641,7 @@ impl<'a> WebRegWrapper<'a> {
             self.client
                 .post(PLAN_REMOVE_ALL)
                 .form(&[
-                    ("sectnum", &*enroll_options.section_number),
+                    ("sectnum", &*enroll_options.section_id),
                     ("termcode", self.term),
                 ])
                 .header(COOKIE, &self.cookies)
@@ -1337,8 +1657,7 @@ impl<'a> WebRegWrapper<'a> {
     /// # Parameters
     /// - `was_enrolled`: Whether you were originally enrolled in the section. This would
     /// be `true` if you were enrolled and `false` if waitlisted.
-    /// - `section_num`: The section number corresponding to the section that you want
-    /// to drop.
+    /// - `section_id`: The section ID corresponding to the section that you want to drop.
     ///
     /// # Returns
     /// `true` if the process succeeded, or a string containing the error message from WebReg if
@@ -1347,7 +1666,27 @@ impl<'a> WebRegWrapper<'a> {
     /// # Remarks
     /// It is a good idea to make a call to get your current schedule before you
     /// make a request here. That way, you know which classes can be dropped.
-    pub async fn drop_section(&self, was_enrolled: bool, section_num: &'a str) -> Output<'a, bool> {
+    ///
+    /// # Example
+    /// Here, we assume that we are enrolled in a course with section ID `078616`, and want to
+    /// drop it.
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::webreg_wrapper::WebRegWrapper;
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
+    ///
+    /// // Use `true` here since we were originally enrolled (not waitlisted).
+    /// let drop_res = wrapper.drop_section(true, "078616").await;
+    /// match drop_res {
+    ///     Ok(o) => println!("{}", if o { "Successful" } else { "Unsuccessful" }),
+    ///     Err(e) => eprintln!("{}", e),
+    /// };
+    /// # }
+    /// ```
+    pub async fn drop_section(&self, was_enrolled: bool, section_id: &'a str) -> Output<'a, bool> {
         let base_reg_url = if was_enrolled {
             ENROLL_DROP
         } else {
@@ -1362,7 +1701,7 @@ impl<'a> WebRegWrapper<'a> {
                     ("subjcode", ""),
                     ("crsecode", ""),
                     // But these are required
-                    ("section", section_num),
+                    ("section", section_id),
                     ("termcode", self.term),
                 ])
                 .header(COOKIE, &self.cookies)
@@ -1414,6 +1753,22 @@ impl<'a> WebRegWrapper<'a> {
     /// # Returns
     /// `true` if the process succeeded, or a string containing the error message from WebReg if
     /// something wrong happened.
+    ///
+    /// # Example
+    /// Renaming the schedule "`Test Schedule`" to "`Another Schedule`."
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::webreg_wrapper::WebRegWrapper;
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
+    /// // You should do error handling here, but I won't
+    /// assert!(!wrapper.get_schedule_list().await.unwrap().contains(&"Another Schedule".to_string()));
+    /// wrapper.rename_schedule("Test Schedule", "Another Schedule").await;
+    /// assert!(wrapper.get_schedule_list().await.unwrap().contains(&"Another Schedule".to_string()));
+    /// # }
+    /// ```
     pub async fn rename_schedule(&self, old_name: &str, new_name: &str) -> Output<'a, bool> {
         // Can't rename your default schedule.
         if old_name == DEFAULT_SCHEDULE_NAME {
@@ -1444,6 +1799,22 @@ impl<'a> WebRegWrapper<'a> {
     /// # Returns
     /// `true` if the process succeeded, or a string containing the error message from WebReg if
     /// something wrong happened.
+    ///
+    /// # Example
+    /// Delete the schedule "`Test Schedule`."
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::webreg_wrapper::WebRegWrapper;
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
+    /// // You should do error handling here, but I won't
+    /// assert!(wrapper.get_schedule_list().await.unwrap().contains(&"Test Schedule".to_string()));
+    /// wrapper.remove_schedule("Test Schedule").await;
+    /// assert!(!wrapper.get_schedule_list().await.unwrap().contains(&"Test Schedule".to_string()));
+    /// # }
+    /// ```
     pub async fn remove_schedule(&self, schedule_name: &str) -> Output<'a, bool> {
         // Can't remove your default schedule.
         if schedule_name == DEFAULT_SCHEDULE_NAME {
@@ -1465,9 +1836,8 @@ impl<'a> WebRegWrapper<'a> {
     /// Gets all of your schedules.
     ///
     /// # Returns
-    /// A result that is either one of:
-    /// - A vector of strings representing the names of the schedules
-    /// - Or the error that was occurred.
+    /// Either a vector of strings representing the names of the schedules, or the error that
+    /// occurred.
     pub async fn get_schedule_list(&self) -> Output<'a, Vec<String>> {
         let url = Url::parse_with_params(ALL_SCHEDULE, &[("termcode", self.term)]).unwrap();
 
@@ -1681,65 +2051,29 @@ struct GroupedSection<'a, T> {
 
 /// Use this struct to add more information regarding the section that you want to enroll/waitlist
 /// in.
-///
-/// An example of this struct in use can be seen below (taken from the README):
-/// ```rs
-/// let add_res = w
-///     .add_section(
-///         true,
-///         EnrollWaitAdd {
-///             section_number: "078616",
-///             // Use default grade option
-///             grading_option: None,
-///             // Use default unit count
-///             unit_count: None,
-///         },
-///         true,
-///     )
-///     .await;
-/// ```
 pub struct EnrollWaitAdd<'a> {
-    /// The section number. For example, `0123123`.
-    pub section_number: &'a str,
+    /// The section ID. For example, `0123123`.
+    pub section_id: &'a str,
     /// The grading option. Can either be L, P, or S.
     /// If None is specified, this uses the default option.
-    pub grading_option: Option<&'a str>,
+    pub grading_option: Option<GradeOption>,
     /// The number of units. If none is specified, this
     /// uses the default unit count.
     pub unit_count: Option<u8>,
 }
 
 /// Use this struct to add more information regarding the course that you want to plan.
-///
-/// An example of this struct in use can be seen below (taken from the README):
-/// ```rs
-/// let res = w.add_to_plan(PlanAdd {
-///     subject_code: "CSE",
-///     course_code: "100",
-///     section_number: "079911",
-///     section_code: "A01",
-///     // Using S/U grading.
-///     grading_option: Some("S"),
-///     // Put in default schedule
-///     schedule_name: None,
-///     unit_count: 4
-/// }, true).await;
-/// match res {
-///     Ok(o) => println!("{}", if o { "Successful" } else { "Unsuccessful" }),
-///     Err(e) => eprintln!("{}", e),
-/// };
-/// ```
 pub struct PlanAdd<'a> {
     /// The subject code. For example, `CSE`.
     pub subject_code: &'a str,
     /// The course code. For example, `12`.
     pub course_code: &'a str,
-    /// The section number. For example, `0123123`.
-    pub section_number: &'a str,
+    /// The section ID. For example, `0123123`.
+    pub section_id: &'a str,
     /// The section code. For example `A00`.
     pub section_code: &'a str,
-    /// The grading option. Can either be L, P, or S.
-    pub grading_option: Option<&'a str>,
+    /// The grading option.
+    pub grading_option: Option<GradeOption>,
     /// The schedule name.
     pub schedule_name: Option<&'a str>,
     /// The number of units.
@@ -1747,6 +2081,7 @@ pub struct PlanAdd<'a> {
 }
 
 /// Used to construct search requests for the `search_courses` function.
+#[derive(Clone)]
 pub struct SearchRequestBuilder<'a> {
     subjects: Vec<&'a str>,
     courses: Vec<&'a str>,

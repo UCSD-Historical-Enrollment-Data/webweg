@@ -1,5 +1,6 @@
 extern crate core;
 
+use reqwest::Client;
 use std::collections::HashSet;
 use std::time::Duration;
 use tokio::time;
@@ -29,7 +30,7 @@ fn get_cookie_str() -> String {
 /// `math 10b`.
 #[tokio::test]
 async fn test_get_course_info() {
-    let wrapper = WebRegWrapper::new(get_cookie_str(), TERM);
+    let wrapper = WebRegWrapper::new(Client::new(), get_cookie_str(), TERM);
     assert!(wrapper.is_valid().await);
 
     let math_155a = wrapper.get_course_info("math", "155a").await;
@@ -52,8 +53,8 @@ async fn test_get_course_info() {
     assert_eq!(36, math_155a[1].total_seats);
     // The professor teaching it is Sam, Steven V.
     assert_eq!(vec!["Buss, Samuel R".to_string()], math_155a[0].instructors);
-    // There are three meetings -- a lecture, discussion, and final
-    assert_eq!(3, math_155a[0].meetings.len());
+    // There are five meetings -- a lecture, discussion, final, and 2 review sessions
+    assert_eq!(5, math_155a[0].meetings.len());
 
     // Test the second section.
     let lecture = math_155a[1]
@@ -123,7 +124,7 @@ async fn test_get_course_info() {
 async fn test_instructor() {
     // Literally hours after I made this test, WebReg removed "Staff" from the courses I selected.
     // Nice.
-    let wrapper = WebRegWrapper::new(get_cookie_str(), TERM);
+    let wrapper = WebRegWrapper::new(Client::new(), get_cookie_str(), TERM);
     assert!(wrapper.is_valid().await);
 
     let cse_130 = wrapper.get_course_info("cse", "130").await;
@@ -148,7 +149,7 @@ async fn test_instructor() {
 /// This function tests the `search_courses_detailed()` method with one section.
 #[tokio::test]
 async fn test_search_one_sec() {
-    let wrapper = WebRegWrapper::new(get_cookie_str(), TERM);
+    let wrapper = WebRegWrapper::new(Client::new(), get_cookie_str(), TERM);
     assert!(wrapper.is_valid().await);
 
     // Search for 1 section: Math 184 (078615)
@@ -188,7 +189,7 @@ async fn test_search_one_sec() {
 /// This function tests the `search_courses_detailed()` method with multiple sections.
 #[tokio::test]
 async fn test_search_mult_sec() {
-    let wrapper = WebRegWrapper::new(get_cookie_str(), TERM);
+    let wrapper = WebRegWrapper::new(Client::new(), get_cookie_str(), TERM);
     assert!(wrapper.is_valid().await);
 
     // Search for 3 sections:
@@ -238,7 +239,7 @@ async fn test_search_mult_sec() {
 /// This function tests the `search_courses_detailed()` method with advanced search features.
 #[tokio::test]
 async fn test_adv_search() {
-    let wrapper = WebRegWrapper::new(get_cookie_str(), TERM);
+    let wrapper = WebRegWrapper::new(Client::new(), get_cookie_str(), TERM);
     assert!(wrapper.is_valid().await);
 
     // Filter all courses by:
@@ -278,7 +279,7 @@ async fn test_adv_search() {
 /// will need to manually check for themselves.
 #[tokio::test]
 async fn test_get_schedule() {
-    let wrapper = WebRegWrapper::new(get_cookie_str(), TERM);
+    let wrapper = WebRegWrapper::new(Client::new(), get_cookie_str(), TERM);
     assert!(wrapper.is_valid().await);
 
     let schedule = wrapper.get_schedule(None).await;
@@ -304,7 +305,7 @@ async fn test_get_schedule() {
 #[tokio::test]
 #[ignore = "Don't need to spam WebReg here."]
 async fn test_change_grade_options() {
-    let wrapper = WebRegWrapper::new(get_cookie_str(), TERM);
+    let wrapper = WebRegWrapper::new(Client::new(), get_cookie_str(), TERM);
     assert!(wrapper.is_valid().await);
 
     // Try to change grading option to P for a class that we're enrolled in.
@@ -345,7 +346,7 @@ async fn test_change_grade_options() {
 /// time.
 #[tokio::test]
 async fn test_other_instructors() {
-    let wrapper = WebRegWrapper::new(get_cookie_str(), TERM);
+    let wrapper = WebRegWrapper::new(Client::new(), get_cookie_str(), TERM);
     assert!(wrapper.is_valid().await);
 
     let cse_30 = wrapper.get_course_info("cse", "30").await;
