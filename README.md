@@ -55,12 +55,13 @@ if you want to perform continuous requests.
 ## Walkthrough
 To use the wrapper, you need to create a new instance of it. For example:
 ```rs
+use reqwest::Client;
 use webweg::webreg_wrapper::WebRegWrapper;
 
 let term = "SP22";
 // For authentication cookies, see previous section.
 let cookie = "your authentication cookies here";
-let w = WebRegWrapper::new(cookie.to_string(), term);
+let w = WebRegWrapper::new(Client::new() cookie.to_string(), term);
 ```
 
 Once created, you're able to use the various wrapper functions. Some useful 
@@ -173,10 +174,10 @@ schedule. You can use the following code:
 let res = w.add_to_plan(PlanAdd {
     subject_code: "CSE",
     course_code: "100",
-    section_number: "079911",
+    section_id: "079911",
     section_code: "A01",
     // Using S/U grading.
-    grading_option: Some("S"),
+    grading_option: Some(GradeOption::S),
     // Put in default schedule
     schedule_name: None,
     unit_count: 4
@@ -228,7 +229,7 @@ let add_res = w
     .add_section(
         section_res[0].has_seats(),
         EnrollWaitAdd {
-            section_number: "078616",
+            section_id: "078616",
             // Use default grade option
             grading_option: None,
             // Use default unit count
@@ -256,7 +257,7 @@ let course_to_drop = w
     .await
     .unwrap_or_else(|_| vec![])
     .into_iter()
-    .find(|x| x.section_number == 78616);
+    .find(|x| x.section_id == 78616);
 
 // Check if we're enrolled in this course
 let is_enrolled = if let Some(r) = course_to_drop {
