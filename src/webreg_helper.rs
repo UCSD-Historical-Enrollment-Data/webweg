@@ -1,23 +1,6 @@
 use crate::webreg_clean_defn::MeetingDay;
 use crate::webreg_raw_defn::RawWebRegMeeting;
 
-/// Checks if this is a valid WebReg meeting. This, in particular, checks to make sure the times
-/// are not all 0. If they are, this implies that the section was canceled.
-///
-/// # Parameters
-/// - `webreg_meeting`: The WebReg meeting to check.
-///
-/// # Returns
-/// `true` if this is a valid meeting and `false` otherwise.
-#[inline]
-pub fn is_valid_meeting(webreg_meeting: &RawWebRegMeeting) -> bool {
-    webreg_meeting.start_time_min != 0
-        || webreg_meeting.start_time_hr != 0
-        || webreg_meeting.end_time_min != 0
-        || webreg_meeting.end_time_hr != 0
-        || webreg_meeting.section_capacity != 0
-}
-
 /// Gets the meeting type (e.g. Lecture, Final Exam, Discussion, etc.) and the meeting time from
 /// an arbitrary `WebRegMeeting`.
 ///

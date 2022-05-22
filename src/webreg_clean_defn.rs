@@ -11,9 +11,8 @@ pub struct CourseSection {
     pub section_id: String,
     /// The section code. For example, `B01`.
     pub section_code: String,
-    /// The instructor(s) for this base section. Here, we define a base section to X00 (where X
-    /// can be any letter).
-    pub instructors: Vec<String>,
+    /// All instructors (i.e., all of the instructors that appear in the `meetings`).
+    pub all_instructors: Vec<String>,
     /// The number of available seats. For example, suppose a section had 30 seats
     /// total and there are 5 people enrolled. Then, this will be `25`.
     pub available_seats: i64,
@@ -52,7 +51,7 @@ impl ToString for CourseSection {
             self.subj_course_id,
             self.section_code,
             self.section_id,
-            self.instructors.join(" & "),
+            self.all_instructors.join(" & "),
             self.available_seats,
             self.enrolled_ct,
             self.total_seats,
@@ -92,11 +91,8 @@ pub struct Meeting {
     /// The room number where this meeting will occur. For example, if the meeting is held in
     /// `CENTR 115`, then this would be `115`.
     pub room: String,
-    /// Any other instructors. Sometimes, there may be sections where a particular meeting (e.g.
-    /// a discussion section) is assigned to a different instructor. In this case, this vector
-    /// will list said names. Note that if a name appears in the base section's instructor list,
-    /// then it will not appear here.
-    pub other_instructors: Vec<String>,
+    /// The instructors assigned to this meeting.
+    pub instructors: Vec<String>,
 }
 
 /// An enum that represents the meeting days for a section meeting.
@@ -145,7 +141,7 @@ impl Meeting {
         s.push_str(&format!("{} {}", self.building, self.room));
 
         s.push_str("..");
-        s.push_str(&self.other_instructors.join(" & "));
+        s.push_str(&self.instructors.join(" & "));
 
         s
     }
@@ -170,7 +166,7 @@ impl ToString for Meeting {
             time_range,
             self.building,
             self.room,
-            self.other_instructors.join(" & ")
+            self.instructors.join(" & ")
         )
     }
 }
@@ -197,8 +193,8 @@ pub struct ScheduledSection {
     pub available_seats: i64,
     /// The grading option. This can be one of `L`, `P`, or `S`.
     pub grade_option: String,
-    /// The instructor for this course.
-    pub instructor: Vec<String>,
+    /// All instructors that appear in all of the meetings.
+    pub all_instructors: Vec<String>,
     /// The number of units that you are taking this course for.
     pub units: f32,
     /// Your enrollment status.
@@ -227,7 +223,7 @@ impl ToString for ScheduledSection {
             self.course_title,
             self.subject_code,
             self.course_code,
-            self.instructor.join(" & "),
+            self.all_instructors.join(" & "),
             status,
             self.units,
             self.grade_option,
