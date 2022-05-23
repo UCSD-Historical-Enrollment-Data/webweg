@@ -9,7 +9,7 @@ use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
 use std::borrow::Cow;
 use std::cmp::max;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 use std::time::SystemTime;
 use url::Url;
 
@@ -260,6 +260,9 @@ impl<'a> WebRegWrapper<'a> {
             return Ok(vec![]);
         }
 
+        // First, we separate the raw meetings based on whether it belongs to a special section
+        // (a section whose section code is all numerical digits, e.g. section 001) OR a general
+        // section.
         let mut base_group_secs: HashMap<&str, Vec<&RawScheduledMeeting>> = HashMap::new();
         let mut special_classes: HashMap<&str, Vec<&RawScheduledMeeting>> = HashMap::new();
         for s_meeting in &res {
@@ -284,15 +287,23 @@ impl<'a> WebRegWrapper<'a> {
 
         let mut schedule: Vec<ScheduledSection> = vec![];
 
+        // We next begin processing the general sections. Each key/value pair represents a course
+        // section. We do not care about the key; the value is a vector of meetings, which we will
+        // clean up.
+        //
+        // Every meeting is separated. For example, if we have a MWF meeting, then there will
+        // be three meeting objects -- one for M, one for W, and one for F.
         for (_, sch_meetings) in base_group_secs {
+            // First, let's get all instructors associated with this course section.
             let instructors = self._get_all_instructors(
                 sch_meetings
                     .iter()
                     .flat_map(|x| self._get_instructor_names(&x.person_full_name)),
             );
 
-            // Literally all just to find the "main" lecture since webreg is inconsistent
-            // plus some courses may not have a lecture.
+            // Here, we want to find the main meetings. We note that the main meetings are the
+            // ones which have a section code ending with 00 AND doesn't have a special meeting
+            // associated with it (e.g., it's not a final exam or midterm).
             let all_main = sch_meetings
                 .iter()
                 .filter(|x| {
@@ -300,6 +311,8 @@ impl<'a> WebRegWrapper<'a> {
                         && x.special_meeting.replace("TBA", "").trim().is_empty()
                 })
                 .collect::<Vec<_>>();
+
+            // This should never be empty, since every section must have a main meeting.
             assert!(
                 !all_main.is_empty()
                     && all_main
@@ -307,6 +320,7 @@ impl<'a> WebRegWrapper<'a> {
                         .all(|x| x.meeting_type == all_main[0].meeting_type)
             );
 
+            // We now parse the main meetings.
             let mut all_meetings: Vec<Meeting> = vec![];
             for main in all_main {
                 all_meetings.push(Meeting {
@@ -322,13 +336,12 @@ impl<'a> WebRegWrapper<'a> {
                     end_hr: main.end_time_hr,
                     building: main.bldg_code.trim().to_string(),
                     room: main.room_code.trim().to_string(),
-                    other_instructors: vec![],
+                    instructors: self._get_instructor_names(&main.person_full_name),
                 });
             }
 
-            // Calculate the remaining meetings. other_special consists of midterms and
-            // final exams, for example, since they are all shared in the same overall
-            // section (e.g. A02 & A03 are in A00)
+            // Parse the remaining meetings.
+            // Here, we want to parse any midterm and exam meetings.
             sch_meetings
                 .iter()
                 .filter(|x| {
@@ -344,11 +357,11 @@ impl<'a> WebRegWrapper<'a> {
                     end_hr: x.end_time_hr,
                     building: x.bldg_code.trim().to_string(),
                     room: x.room_code.trim().to_string(),
-                    other_instructors: vec![],
+                    instructors: self._get_instructor_names(&x.person_full_name),
                 })
                 .for_each(|meeting| all_meetings.push(meeting));
 
-            // Other meetings
+            // Finally, we parse the general meetings.
             sch_meetings
                 .iter()
                 .filter(|x| !x.sect_code.ends_with("00"))
@@ -361,11 +374,12 @@ impl<'a> WebRegWrapper<'a> {
                     end_hr: x.end_time_hr,
                     building: x.bldg_code.trim().to_string(),
                     room: x.room_code.trim().to_string(),
-                    other_instructors: vec![],
+                    instructors: self._get_instructor_names(&x.person_full_name),
                 })
                 .for_each(|meeting| all_meetings.push(meeting));
 
-            // Look for current waitlist count
+            // At this point, we now want to look for data like section capacity, number of
+            // students on the waitlist, and so on.
             let wl_count = match sch_meetings.iter().find(|x| x.count_on_waitlist.is_some()) {
                 Some(r) => r.count_on_waitlist.unwrap(),
                 None => 0,
@@ -396,7 +410,7 @@ impl<'a> WebRegWrapper<'a> {
 
             schedule.push(ScheduledSection {
                 section_id: sch_meetings[0].section_id.to_string(),
-                instructor: instructors.clone(),
+                all_instructors: instructors.clone(),
                 subject_code: sch_meetings[0].subj_code.trim().to_string(),
                 course_code: sch_meetings[0].course_code.trim().to_string(),
                 course_title: sch_meetings[0].course_title.trim().to_string(),
@@ -413,14 +427,14 @@ impl<'a> WebRegWrapper<'a> {
                     "EN" => EnrollmentStatus::Enrolled,
                     "WT" => EnrollmentStatus::Waitlist(pos_on_wl),
                     "PL" => EnrollmentStatus::Planned,
-                    _ => EnrollmentStatus::Planned,
+                    _ => EnrollmentStatus::Unknown,
                 },
                 waitlist_ct: wl_count,
                 meetings: all_meetings,
             });
         }
 
-        // Classes with only a lecture
+        // Now, we look into parsing the special sections. This is trivial to parse.
         for (_, sch_meetings) in special_classes {
             let day_code = sch_meetings
                 .iter()
@@ -439,7 +453,7 @@ impl<'a> WebRegWrapper<'a> {
 
             schedule.push(ScheduledSection {
                 section_id: sch_meetings[0].section_id.to_string(),
-                instructor: self._get_all_instructors(
+                all_instructors: self._get_all_instructors(
                     sch_meetings
                         .iter()
                         .flat_map(|x| self._get_instructor_names(&x.person_full_name)),
@@ -457,7 +471,7 @@ impl<'a> WebRegWrapper<'a> {
                     "EN" => EnrollmentStatus::Enrolled,
                     "WT" => EnrollmentStatus::Waitlist(-1),
                     "PL" => EnrollmentStatus::Planned,
-                    _ => EnrollmentStatus::Planned,
+                    _ => EnrollmentStatus::Unknown,
                 },
                 waitlist_ct: -1,
                 meetings: vec![Meeting {
@@ -469,7 +483,7 @@ impl<'a> WebRegWrapper<'a> {
                     end_hr: sch_meetings[0].start_time_hr,
                     building: sch_meetings[0].bldg_code.trim().to_string(),
                     room: sch_meetings[0].room_code.trim().to_string(),
-                    other_instructors: vec![],
+                    instructors: self._get_instructor_names(&sch_meetings[0].person_full_name),
                 }],
             });
         }
@@ -543,6 +557,17 @@ impl<'a> WebRegWrapper<'a> {
             )
             .await?;
 
+        // First, remove any duplicate meetings. For example, some courses may only have sections
+        // with one lecture and one final exam meeting. Call this section section A00, so that
+        // the lecture and final exam are both tagged as section code A00. Then, WebReg will
+        // show both of these in the resulting JSON; additionally, they will both appear to be
+        // enrollable (i.e., the `display_type` is `AC`).
+        //
+        // Note that if we are dealing with both a lecture and final exam meeting, then
+        // both meeting structures will contain the same exact data (for our purposes);
+        // this means that information like enrolled count, waitlist count, and so on will
+        // be reflected across both structures accurately, so there's no need to search
+        // for one particular meeting.
         let mut meetings_to_parse = vec![];
         let mut seen: HashSet<&str> = HashSet::new();
         for meeting in &meetings {
@@ -562,7 +587,7 @@ impl<'a> WebRegWrapper<'a> {
                     .to_uppercase(),
                 section_id: x.section_id.trim().to_string(),
                 section_code: x.sect_code.trim().to_string(),
-                instructors: self._get_instructor_names(&x.person_full_name),
+                all_instructors: self._get_instructor_names(&x.person_full_name),
                 available_seats: max(x.avail_seat, 0),
                 enrolled_ct: x.enrolled_count,
                 total_seats: x.section_capacity,
@@ -639,259 +664,220 @@ impl<'a> WebRegWrapper<'a> {
         let course_dept_id =
             format!("{} {}", subject_code.trim(), course_code.trim()).to_uppercase();
 
-        // Process any "special" sections. Special sections are sections whose section code is just
-        // numbers, e.g. section 001.
         let mut sections: Vec<CourseSection> = vec![];
-        let mut unprocessed_sections: Vec<RawWebRegMeeting> = vec![];
-        for webreg_meeting in parsed {
-            if !webreg_helper::is_valid_meeting(&webreg_meeting) {
+        let mut unprocessed_meetings: Vec<RawWebRegMeeting> = vec![];
+
+        // First, let's determine which meetings only have numerical section codes (e.g., 001).
+        // Generally, sections with numerical section codes will have ONE meeting, so if we find
+        // any meetings here with numerical section code, then we can just call that a section
+        // and easily process it.
+        for meeting in parsed {
+            // If the meeting is canceled, then we do not need to check anything else.
+            // Likewise, if the section code doesn't exist, then we can't process it.
+            if meeting.display_type == "CA" || meeting.sect_code.trim().is_empty() {
                 continue;
             }
 
-            // If section code starts with a number then it's probably a special section.
-            if webreg_meeting.sect_code.as_bytes()[0].is_ascii_digit() {
-                let m = webreg_helper::parse_meeting_type_date(&webreg_meeting);
-
+            // Next, we check to see if the meeting is a special meeting. To do so, we can just
+            // check to make sure the first character in the section code is a digit (e.g. *0*01)
+            if meeting.sect_code.as_bytes()[0].is_ascii_digit() {
+                let (m_type, m_days) = webreg_helper::parse_meeting_type_date(&meeting);
                 sections.push(CourseSection {
                     subj_course_id: course_dept_id.clone(),
-                    section_id: webreg_meeting.section_id.trim().to_string(),
-                    section_code: webreg_meeting.sect_code.trim().to_string(),
-                    instructors: vec![webreg_meeting
-                        .person_full_name
-                        .split_once(';')
-                        .unwrap()
-                        .0
-                        .trim()
-                        .to_string()],
+                    section_id: meeting.section_id.trim().to_string(),
+                    section_code: meeting.sect_code.trim().to_string(),
+                    all_instructors: self._get_instructor_names(&meeting.person_full_name),
                     // Because it turns out that you can have negative available seats.
-                    available_seats: max(webreg_meeting.avail_seat, 0),
-                    enrolled_ct: webreg_meeting.enrolled_count,
-                    total_seats: webreg_meeting.section_capacity,
-                    waitlist_ct: webreg_meeting.count_on_waitlist,
-                    needs_waitlist: webreg_meeting.needs_waitlist == "Y",
+                    available_seats: max(meeting.avail_seat, 0),
+                    enrolled_ct: meeting.enrolled_count,
+                    total_seats: meeting.section_capacity,
+                    waitlist_ct: meeting.count_on_waitlist,
+                    needs_waitlist: meeting.needs_waitlist == "Y",
                     meetings: vec![Meeting {
-                        start_hr: webreg_meeting.start_time_hr,
-                        start_min: webreg_meeting.start_time_min,
-                        end_hr: webreg_meeting.end_time_hr,
-                        end_min: webreg_meeting.end_time_min,
-                        meeting_type: m.0.to_string(),
-                        meeting_days: m.1,
-                        building: webreg_meeting.bldg_code.trim().to_string(),
-                        room: webreg_meeting.room_code.trim().to_string(),
-                        other_instructors: vec![],
+                        start_hr: meeting.start_time_hr,
+                        start_min: meeting.start_time_min,
+                        end_hr: meeting.end_time_hr,
+                        end_min: meeting.end_time_min,
+                        meeting_type: m_type.to_string(),
+                        meeting_days: m_days,
+                        building: meeting.bldg_code.trim().to_string(),
+                        room: meeting.room_code.trim().to_string(),
+                        instructors: self._get_instructor_names(&meeting.person_full_name),
                     }],
                 });
 
                 continue;
             }
 
-            // If the component cannot be enrolled in,
-            // AND the section code doesn't end with '00'
-            // Then it's useless for us
-            if webreg_meeting.display_type != "AC" && !webreg_meeting.sect_code.ends_with("00") {
-                continue;
-            }
-
-            unprocessed_sections.push(webreg_meeting);
+            // If this wasn't a special meeting, we can process it later.
+            unprocessed_meetings.push(meeting);
         }
 
-        if unprocessed_sections.is_empty() {
+        // If there is nothing left to process, then we're done!
+        if unprocessed_meetings.is_empty() {
             return Ok(sections);
         }
 
-        // Process remaining sections
-        let mut all_groups: Vec<GroupedSection<RawWebRegMeeting>> = vec![];
-        let mut sec_main_ids = unprocessed_sections
-            .iter()
-            .filter(|x| x.sect_code.ends_with("00"))
-            .map(|x| &*x.sect_code)
-            .collect::<VecDeque<_>>();
+        // Otherwise, we need to deal with non-special meetings. Remember that these are all
+        // scattered (e.g. one meeting may represent one discussion, another meeting may represent
+        // a midterm for a completely different section, etc.)
+        //
+        // We create a map to categorize each meeting by their meeting code. The key, then, will
+        // be the section code family (e.g., for section A01, its family will be 'A') and the
+        // value will be the corresponding meetings.
+        let mut map: HashMap<char, GroupedSection<RawWebRegMeeting>> = HashMap::new();
+        for meeting in &unprocessed_meetings {
+            // Get the section family, which *should* exist (i.e., no panic should occur here).
+            let sec_fam = meeting
+                .sect_code
+                .chars()
+                .next()
+                .expect("Non-existent section code.");
 
-        let mut seen: HashSet<&str> = HashSet::new();
-        while !sec_main_ids.is_empty() {
-            let main_id = sec_main_ids.pop_front().unwrap();
-            if seen.contains(main_id) {
-                continue;
-            }
-
-            seen.insert(main_id);
-            let letter = main_id.chars().into_iter().next().unwrap();
-            let mut group = GroupedSection {
-                main_meeting: vec![],
+            let entry = map.entry(sec_fam).or_insert(GroupedSection {
                 child_meetings: vec![],
-                other_special_meetings: vec![],
-            };
+                general_meetings: vec![],
+            });
 
-            unprocessed_sections
-                .iter()
-                .filter(|x| {
-                    x.sect_code == main_id && x.special_meeting.replace("TBA", "").trim().is_empty()
-                })
-                .for_each(|x| group.main_meeting.push(x));
-
-            if group.main_meeting.is_empty() {
+            // If the meeting's code ends with '00' then it is automatically a general meeting.
+            // This includes lectures, final exams, and other similar meetings.
+            // Note that if a section ONLY has a lecture and final exam, both lecture and
+            // final exam meeting will show up as "enrollable" (i.e., the `display_type` is `AC`),
+            // so we want to catch those meetings here first instead of in the match statement
+            // below.
+            if meeting.sect_code.ends_with("00") {
+                entry.general_meetings.push(meeting);
                 continue;
             }
 
-            // Want all sections with section code starting with the same letter as what
-            // the main section code is. So, if main_id is A00, we want all sections that
-            // have section code starting with A.
-            unprocessed_sections
-                .iter()
-                .filter(|x| x.sect_code.starts_with(letter))
-                .for_each(|x| {
-                    // Don't count this again
-                    let special_meeting = x.special_meeting.replace("TBA", "");
-                    if x.sect_code == main_id && special_meeting.trim().is_empty() {
-                        return;
-                    }
+            // Otherwise, we can check everything else.
+            match meeting.display_type.as_str() {
+                // AC = Enrollable (usually discussion sections).
+                "AC" => entry.child_meetings.push(meeting),
 
-                    // Probably a discussion
-                    // Original if-condition:
-                    // (x.start_date == x.section_start_date && special_meeting.trim().is_empty())
-                    if x.sect_code != main_id {
-                        group.child_meetings.push(x);
-                        return;
-                    }
-
-                    group.other_special_meetings.push(x);
-                });
-
-            all_groups.push(group);
+                // NC = Cannot be enrolled in (usually lectures, final exams).
+                //
+                // The reason why we have this is because some courses, like CSE 8A, will have
+                // labs and discussions. Here, students can enroll in labs (often with section
+                // codes like A50, A51, and so on). However, the discussions are not enrollable and
+                // so they will have the `NC` display type. However, unlike lectures, final exams,
+                // and related, these discussion sections will have section codes like A01, A02,
+                // and so on.
+                "NC" => entry.general_meetings.push(meeting),
+                _ => continue,
+            };
         }
 
-        // Process each group
-        for group in all_groups {
-            let base_instructors = self._get_all_instructors(
-                vec![
-                    group
-                        .main_meeting
-                        .iter()
-                        .flat_map(|x| self._get_instructor_names(&x.person_full_name))
-                        .collect::<Vec<_>>(),
-                    group
-                        .other_special_meetings
-                        .iter()
-                        .flat_map(|x| self._get_instructor_names(&x.person_full_name))
-                        .collect::<Vec<_>>(),
-                ]
-                .concat()
-                .into_iter(),
-            );
+        // Sort the keys so that section A is first, then section B, and so on.
+        let mut keys: Vec<_> = map.keys().collect();
+        keys.sort();
 
-            let mut main_meetings: Vec<Meeting> = vec![];
-            for meeting in &group.main_meeting {
-                let (m_m_type, m_days) = webreg_helper::parse_meeting_type_date(meeting);
-
-                main_meetings.push(Meeting {
-                    meeting_type: m_m_type.to_string(),
-                    meeting_days: m_days,
-                    building: meeting.bldg_code.trim().to_string(),
-                    room: meeting.room_code.trim().to_string(),
-                    start_hr: meeting.start_time_hr,
-                    start_min: meeting.start_time_min,
-                    end_hr: meeting.end_time_hr,
-                    end_min: meeting.end_time_min,
-                    // Main meetings should only ever have the base instructors. In other words,
-                    // the professor assigned to teach section X00 should be the only one here.
-                    other_instructors: vec![],
-                });
-            }
-
-            let other_meetings = group
-                .other_special_meetings
-                .into_iter()
-                .map(|x| {
-                    let (o_m_type, o_days) = webreg_helper::parse_meeting_type_date(x);
-                    Meeting {
-                        meeting_type: o_m_type.to_string(),
-                        meeting_days: o_days,
-                        building: x.bldg_code.trim().to_string(),
-                        room: x.room_code.trim().to_string(),
-                        start_hr: x.start_time_hr,
-                        start_min: x.start_time_min,
-                        end_hr: x.end_time_hr,
-                        end_min: x.end_time_min,
-                        // Same idea as with the justification above
-                        other_instructors: vec![],
-                    }
-                })
-                .collect::<Vec<_>>();
-
-            // It's possible that there are no discussions, just a lecture
-            if group.child_meetings.is_empty() {
-                let mut all_meetings: Vec<Meeting> = vec![];
-                main_meetings
-                    .iter()
-                    .for_each(|m| all_meetings.push(m.clone()));
-
-                other_meetings
-                    .iter()
-                    .for_each(|x| all_meetings.push(x.clone()));
-
-                // Just lecture = enrollment stats will be reflected properly on this meeting.
-                sections.push(CourseSection {
-                    subj_course_id: course_dept_id.clone(),
-                    section_id: group.main_meeting[0].section_id.trim().to_string(),
-                    section_code: group.main_meeting[0].sect_code.trim().to_string(),
-                    needs_waitlist: group.main_meeting[0].needs_waitlist == "Y",
-                    instructors: base_instructors.clone(),
-                    available_seats: max(group.main_meeting[0].avail_seat, 0),
-                    enrolled_ct: group.main_meeting[0].enrolled_count,
-                    total_seats: group.main_meeting[0].section_capacity,
-                    waitlist_ct: group.main_meeting[0].count_on_waitlist,
-                    meetings: all_meetings,
-                });
-
+        // Now that we have all of the meetings, categorizing should be easier.
+        for key in keys {
+            // We're making a bold assumption that the `general_meetings` vector will never be
+            // empty. However, we note from various courses that sections will *always* either
+            // have at least ONE meeting with
+            // - section code X00 (where X is a letter), or         handled here.
+            // - 0YY (where Y is a digit)                           handled above.
+            // In other words, it's *very* unlikely that we'll see a section where there's no
+            // meeting that meets the above patterns, so we have little to hopefully worry about.
+            let entry = &map[key];
+            if entry.general_meetings.is_empty() {
+                // This should never hit, but sanity check nonetheless.
+                dbg!(&course_dept_id);
                 continue;
             }
 
-            // Hopefully these are discussions
-            for meeting in group.child_meetings {
-                let (m_type, t_m_dats) = webreg_helper::parse_meeting_type_date(meeting);
-                let mut other_instructors = vec![];
-                for instructor in self._get_instructor_names(&meeting.person_full_name) {
-                    if base_instructors.contains(&instructor) {
-                        continue;
-                    }
+            // First, get the base instructors. These are all of the instructors for the lectures.
+            // Note that, for a majority of courses, there will only be one instructor. However,
+            // some courses may have two or more instructors.
+            let base_instructors = self._get_all_instructors(
+                entry
+                    .general_meetings
+                    .iter()
+                    .flat_map(|x| self._get_instructor_names(&x.person_full_name)),
+            );
 
-                    other_instructors.push(instructor);
+            // Define a closure that takes in a slice `from` (which is a slice of all meetings that
+            // we want to read in) and a vector `to` (which is where we want to write these
+            // meetings to).
+            let process_meetings = |from: &[&RawWebRegMeeting], to: &mut Vec<Meeting>| {
+                for meeting in from {
+                    let (m_m_type, m_days) = webreg_helper::parse_meeting_type_date(meeting);
+
+                    to.push(Meeting {
+                        meeting_type: m_m_type.to_string(),
+                        meeting_days: m_days,
+                        building: meeting.bldg_code.trim().to_string(),
+                        room: meeting.room_code.trim().to_string(),
+                        start_hr: meeting.start_time_hr,
+                        start_min: meeting.start_time_min,
+                        end_hr: meeting.end_time_hr,
+                        end_min: meeting.end_time_min,
+                        // These are instructors specifically assigned to this meeting. For most
+                        // cases, these will be the same instructors assigned to the lecture
+                        // meetings.
+                        instructors: self._get_instructor_names(&meeting.person_full_name),
+                    });
                 }
+            };
 
-                // Adding all of the main meetings to this meeting vector so we can also
-                // add section-specific ones as well
-                let mut all_meetings: Vec<Meeting> = vec![];
-                main_meetings
-                    .iter()
-                    .for_each(|m| all_meetings.push(m.clone()));
-                all_meetings.push(Meeting {
-                    meeting_type: m_type.to_string(),
-                    meeting_days: t_m_dats,
-                    start_min: meeting.start_time_min,
-                    start_hr: meeting.start_time_hr,
-                    end_min: meeting.end_time_min,
-                    end_hr: meeting.end_time_hr,
-                    building: meeting.bldg_code.trim().to_string(),
-                    room: meeting.room_code.trim().to_string(),
-                    other_instructors,
-                });
-
-                other_meetings
-                    .iter()
-                    .for_each(|x| all_meetings.push(x.clone()));
-
-                sections.push(CourseSection {
+            // If there are no child meetings, then this means we only have lecture + exams.
+            if entry.child_meetings.is_empty() {
+                // Note that the general meetings vector will contain a lecture (and maybe a
+                // final exam) meeting. If it contains both a lecture and final exam meeting, then
+                // both meeting structures will contain the same exact data (for our purposes);
+                // this means that information like enrolled count, waitlist count, and so on will
+                // be reflected across both structures accurately, so there's no need to search
+                // for one particular meeting.
+                let mut section = CourseSection {
                     subj_course_id: course_dept_id.clone(),
-                    section_id: meeting.section_id.trim().to_string(),
-                    section_code: meeting.sect_code.trim().to_string(),
-                    instructors: base_instructors.clone(),
-                    available_seats: max(meeting.avail_seat, 0),
-                    enrolled_ct: meeting.enrolled_count,
-                    needs_waitlist: meeting.needs_waitlist == "Y",
-                    total_seats: meeting.section_capacity,
-                    waitlist_ct: meeting.count_on_waitlist,
-                    meetings: all_meetings,
-                });
+                    section_id: entry.general_meetings[0].section_id.clone(),
+                    section_code: entry.general_meetings[0].sect_code.clone(),
+                    all_instructors: self
+                        ._get_instructor_names(&entry.general_meetings[0].person_full_name),
+                    available_seats: max(entry.general_meetings[0].avail_seat, 0),
+                    enrolled_ct: entry.general_meetings[0].enrolled_count,
+                    total_seats: entry.general_meetings[0].section_capacity,
+                    waitlist_ct: entry.general_meetings[0].count_on_waitlist,
+                    meetings: vec![],
+                    needs_waitlist: entry.general_meetings[0].needs_waitlist == "Y",
+                };
+
+                // Then, iterate through the rest of the general meetings.
+                process_meetings(&entry.general_meetings, &mut section.meetings);
+                // Finally, add it to the sections.
+                sections.push(section);
+                continue;
+            }
+
+            // Otherwise, we essentially repeat the same process above. The only difference is that
+            // we clone 'section' for each child meeting.
+            for c_meeting in &entry.child_meetings {
+                let mut instructors = base_instructors.clone();
+                instructors.append(&mut self._get_instructor_names(&c_meeting.person_full_name));
+                instructors.sort();
+                instructors.dedup();
+
+                // Process the general section info.
+                let mut section = CourseSection {
+                    subj_course_id: course_dept_id.clone(),
+                    section_id: c_meeting.section_id.clone(),
+                    section_code: c_meeting.sect_code.clone(),
+                    all_instructors: instructors,
+                    available_seats: max(c_meeting.avail_seat, 0),
+                    enrolled_ct: c_meeting.enrolled_count,
+                    total_seats: c_meeting.section_capacity,
+                    waitlist_ct: c_meeting.count_on_waitlist,
+                    meetings: vec![],
+                    needs_waitlist: c_meeting.needs_waitlist == "Y",
+                };
+
+                // Iterate through the general and child meetings.
+                process_meetings(&entry.general_meetings, &mut section.meetings);
+                process_meetings(&[c_meeting], &mut section.meetings);
+                // Finally, add it to the sections as usual.
+                sections.push(section);
             }
         }
 
@@ -2044,9 +2030,13 @@ impl<'a> WebRegWrapper<'a> {
 // Helper structure for organizing meetings. Only used once for now.
 #[derive(Debug)]
 struct GroupedSection<'a, T> {
-    main_meeting: Vec<&'a T>,
+    /// All general meetings. These include meetings that are consistent across *all* sections.
+    /// For example, lectures and final exams.
+    general_meetings: Vec<&'a T>,
+
+    /// All unique meetings. These are generally meetings that are unique the one section.
+    /// For example, discussions.
     child_meetings: Vec<&'a T>,
-    other_special_meetings: Vec<&'a T>,
 }
 
 /// Use this struct to add more information regarding the section that you want to enroll/waitlist
