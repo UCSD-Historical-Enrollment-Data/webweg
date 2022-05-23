@@ -214,6 +214,7 @@ impl ToString for ScheduledSection {
                 format!("Waitlisted {}/{}", r, self.waitlist_ct).into()
             }
             EnrollmentStatus::Planned => "Planned".into(),
+            EnrollmentStatus::Unknown => "Unknown".into(),
         };
 
         let mut s = format!(
@@ -248,4 +249,5 @@ pub enum EnrollmentStatus {
     Enrolled,
     Waitlist(i64),
     Planned,
+    Unknown,
 }

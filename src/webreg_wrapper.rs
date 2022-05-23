@@ -260,6 +260,9 @@ impl<'a> WebRegWrapper<'a> {
             return Ok(vec![]);
         }
 
+        // First, we separate the raw meetings based on whether it belongs to a special section
+        // (a section whose section code is all numerical digits, e.g. section 001) OR a general
+        // section.
         let mut base_group_secs: HashMap<&str, Vec<&RawScheduledMeeting>> = HashMap::new();
         let mut special_classes: HashMap<&str, Vec<&RawScheduledMeeting>> = HashMap::new();
         for s_meeting in &res {
@@ -284,15 +287,23 @@ impl<'a> WebRegWrapper<'a> {
 
         let mut schedule: Vec<ScheduledSection> = vec![];
 
+        // We next begin processing the general sections. Each key/value pair represents a course
+        // section. We do not care about the key; the value is a vector of meetings, which we will
+        // clean up.
+        //
+        // Every meeting is separated. For example, if we have a MWF meeting, then there will
+        // be three meeting objects -- one for M, one for W, and one for F.
         for (_, sch_meetings) in base_group_secs {
+            // First, let's get all instructors associated with this course section.
             let instructors = self._get_all_instructors(
                 sch_meetings
                     .iter()
                     .flat_map(|x| self._get_instructor_names(&x.person_full_name)),
             );
 
-            // Literally all just to find the "main" lecture since webreg is inconsistent
-            // plus some courses may not have a lecture.
+            // Here, we want to find the main meetings. We note that the main meetings are the
+            // ones which have a section code ending with 00 AND doesn't have a special meeting
+            // associated with it (e.g., it's not a final exam or midterm).
             let all_main = sch_meetings
                 .iter()
                 .filter(|x| {
@@ -300,6 +311,8 @@ impl<'a> WebRegWrapper<'a> {
                         && x.special_meeting.replace("TBA", "").trim().is_empty()
                 })
                 .collect::<Vec<_>>();
+
+            // This should never be empty, since every section must have a main meeting.
             assert!(
                 !all_main.is_empty()
                     && all_main
@@ -307,6 +320,7 @@ impl<'a> WebRegWrapper<'a> {
                         .all(|x| x.meeting_type == all_main[0].meeting_type)
             );
 
+            // We now parse the main meetings.
             let mut all_meetings: Vec<Meeting> = vec![];
             for main in all_main {
                 all_meetings.push(Meeting {
@@ -326,9 +340,8 @@ impl<'a> WebRegWrapper<'a> {
                 });
             }
 
-            // Calculate the remaining meetings. other_special consists of midterms and
-            // final exams, for example, since they are all shared in the same overall
-            // section (e.g. A02 & A03 are in A00)
+            // Parse the remaining meetings.
+            // Here, we want to parse any midterm and exam meetings.
             sch_meetings
                 .iter()
                 .filter(|x| {
@@ -348,7 +361,7 @@ impl<'a> WebRegWrapper<'a> {
                 })
                 .for_each(|meeting| all_meetings.push(meeting));
 
-            // Other meetings
+            // Finally, we parse the general meetings.
             sch_meetings
                 .iter()
                 .filter(|x| !x.sect_code.ends_with("00"))
@@ -365,7 +378,8 @@ impl<'a> WebRegWrapper<'a> {
                 })
                 .for_each(|meeting| all_meetings.push(meeting));
 
-            // Look for current waitlist count
+            // At this point, we now want to look for data like section capacity, number of
+            // students on the waitlist, and so on.
             let wl_count = match sch_meetings.iter().find(|x| x.count_on_waitlist.is_some()) {
                 Some(r) => r.count_on_waitlist.unwrap(),
                 None => 0,
@@ -413,14 +427,14 @@ impl<'a> WebRegWrapper<'a> {
                     "EN" => EnrollmentStatus::Enrolled,
                     "WT" => EnrollmentStatus::Waitlist(pos_on_wl),
                     "PL" => EnrollmentStatus::Planned,
-                    _ => EnrollmentStatus::Planned,
+                    _ => EnrollmentStatus::Unknown,
                 },
                 waitlist_ct: wl_count,
                 meetings: all_meetings,
             });
         }
 
-        // Classes with only a lecture
+        // Now, we look into parsing the special sections. This is trivial to parse.
         for (_, sch_meetings) in special_classes {
             let day_code = sch_meetings
                 .iter()
@@ -457,7 +471,7 @@ impl<'a> WebRegWrapper<'a> {
                     "EN" => EnrollmentStatus::Enrolled,
                     "WT" => EnrollmentStatus::Waitlist(-1),
                     "PL" => EnrollmentStatus::Planned,
-                    _ => EnrollmentStatus::Planned,
+                    _ => EnrollmentStatus::Unknown,
                 },
                 waitlist_ct: -1,
                 meetings: vec![Meeting {

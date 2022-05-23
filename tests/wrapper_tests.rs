@@ -366,7 +366,6 @@ async fn test_other_instructors() {
 
 /// Literally just designed for me to test random things with the wrapper.
 #[tokio::test]
-#[ignore]
 async fn test_random_stuff() {
     let wrapper = WebRegWrapper::new(Client::new(), get_cookie_str(), TERM);
     assert!(wrapper.is_valid().await);
