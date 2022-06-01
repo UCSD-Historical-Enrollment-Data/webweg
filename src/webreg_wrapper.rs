@@ -1350,6 +1350,63 @@ impl<'a> WebRegWrapper<'a> {
         .await
     }
 
+    /// Validates that adding a course to your plan will cause no issue.
+    ///
+    /// # Parameters
+    /// - `plan_options`: Information for the course that you want to plan.
+    ///
+    /// # Returns
+    /// `true` if the process succeeded, or a string containing the error message from WebReg if
+    /// an issue appears.
+    ///
+    /// # Example
+    /// Here, we will add the course `CSE 100`, which has section ID `079911` and section code
+    /// `A01`, to our plan.
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::webreg_wrapper::{GradeOption, PlanAdd, WebRegWrapper};
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
+    ///
+    /// let res = wrapper.validate_add_to_plan(PlanAdd {
+    ///     subject_code: "CSE",
+    ///     course_code: "100",
+    ///     section_id: "079911",
+    ///     section_code: "A01",
+    ///     // Using S/U grading.
+    ///     grading_option: Some(GradeOption::S),
+    ///     // Put in default schedule
+    ///     schedule_name: None,
+    ///     unit_count: 4
+    /// }, true).await;
+    ///
+    /// match res {
+    ///     Ok(o) => println!("{}", if o { "Successful, planning is good" } else { "Unsuccessful" }),
+    ///     Err(e) => eprintln!("{}", e),
+    /// };
+    /// # }
+    /// ```
+    pub async fn validate_add_to_plan(&self, plan_options: &PlanAdd<'_>) -> Output<'a, bool> {
+        let crsc_code = self._get_formatted_course_code(plan_options.course_code);
+        self._process_post_response(
+            self.client
+                .post(PLAN_EDIT)
+                .form(&[
+                    ("section", &*plan_options.section_id),
+                    ("subjcode", &*plan_options.subject_code),
+                    ("crsecode", &*crsc_code),
+                    ("termcode", self.term),
+                ])
+                .header(COOKIE, &self.cookies)
+                .header(USER_AGENT, MY_USER_AGENT)
+                .send()
+                .await,
+        )
+        .await
+    }
+
     /// Allows you to plan a course.
     ///
     /// # Parameters
@@ -1405,22 +1462,9 @@ impl<'a> WebRegWrapper<'a> {
             // actually enroll in every component of the course.
             // Also, this can potentially return "false" due to you not being able to enroll in the
             // class, e.g. the class you're trying to plan is a major-restricted class.
-            self._process_post_response(
-                self.client
-                    .post(PLAN_EDIT)
-                    .form(&[
-                        ("section", &*plan_options.section_id),
-                        ("subjcode", &*plan_options.subject_code),
-                        ("crsecode", &*crsc_code),
-                        ("termcode", self.term),
-                    ])
-                    .header(COOKIE, &self.cookies)
-                    .header(USER_AGENT, MY_USER_AGENT)
-                    .send()
-                    .await,
-            )
-            .await
-            .unwrap_or(false);
+            self.validate_add_to_plan(&plan_options)
+                .await
+                .unwrap_or(false);
         }
 
         self._process_post_response(
