@@ -1507,6 +1507,82 @@ impl<'a> WebRegWrapper<'a> {
         .await
     }
 
+    /// Validates that the section that you are trying to enroll in is valid.
+    ///
+    /// # Parameters
+    /// - `is_enroll`: Whether you are enrolling.
+    /// - `enroll_options`: The enrollment options. Note that the section ID is the only thing
+    /// that matters here. A reference, thus, is expected since you will probably be reusing
+    /// the structure when calling the `add_section` function.
+    ///
+    /// # Returns
+    /// `true` if the process succeeded, or a string containing the error message from WebReg if
+    /// there is an issue when trying to enroll.
+    ///
+    /// # Example
+    /// Here, we will enroll in the course with section ID `078616`, and with the default grading
+    /// option and unit count.
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::webreg_wrapper::{EnrollWaitAdd, WebRegWrapper};
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
+    ///
+    /// let enroll_options = EnrollWaitAdd {
+    ///     section_id: "078616",
+    ///     // Use default grade option
+    ///     grading_option: None,
+    ///     // Use default unit count
+    ///     unit_count: None,
+    /// };
+    ///
+    /// let add_res = wrapper
+    ///     .validate_add_section(
+    ///         // Use true here since we want to enroll (not waitlist). Note that this might
+    ///         // result in an `Err` being returned if you can't enroll.
+    ///         true,
+    ///         &enroll_options,
+    ///     )
+    ///     .await;
+    ///
+    /// match add_res {
+    ///     Ok(o) => println!("{}", if o { "Successful" } else { "Unsuccessful" }),
+    ///     Err(e) => eprintln!("{}", e),
+    /// };
+    /// # }
+    /// ```
+    pub async fn validate_add_section(
+        &self,
+        is_enroll: bool,
+        enroll_options: &EnrollWaitAdd<'a>,
+    ) -> Output<'a, bool> {
+        let base_edit_url = if is_enroll {
+            ENROLL_EDIT
+        } else {
+            WAITLIST_EDIT
+        };
+
+        self._process_post_response(
+            self.client
+                .post(base_edit_url)
+                .form(&[
+                    // These are required
+                    ("section", &*enroll_options.section_id),
+                    ("termcode", self.term),
+                    // These are optional.
+                    ("subjcode", ""),
+                    ("crsecode", ""),
+                ])
+                .header(COOKIE, &self.cookies)
+                .header(USER_AGENT, MY_USER_AGENT)
+                .send()
+                .await,
+        )
+        .await
+    }
+
     /// Enrolls in, or waitlists, a class.
     ///
     /// # Parameters
@@ -1514,8 +1590,9 @@ impl<'a> WebRegWrapper<'a> {
     /// in this section and `false` if you want to waitlist.
     /// - `enroll_options`: Information for the course that you want to enroll in.
     /// - `validate`: Whether to validate your enrollment of this course beforehand. Note that
-    /// validation isn't necessary, although it is recommended. But, perhaps you just want to
-    /// make one less request.
+    /// validation is required, so this should be `true`. This should only be `false` if you
+    /// called `validate_add_section` before. If you attempt to call `add_section` without
+    /// validation, then you will get an error.
     ///
     /// # Returns
     /// `true` if the process succeeded, or a string containing the error message from WebReg if
@@ -1557,39 +1634,18 @@ impl<'a> WebRegWrapper<'a> {
     pub async fn add_section(
         &self,
         is_enroll: bool,
-        enroll_options: EnrollWaitAdd<'_>,
+        enroll_options: EnrollWaitAdd<'a>,
         validate: bool,
     ) -> Output<'a, bool> {
         let base_reg_url = if is_enroll { ENROLL_ADD } else { WAITLIST_ADD };
-        let base_edit_url = if is_enroll {
-            ENROLL_EDIT
-        } else {
-            WAITLIST_EDIT
-        };
-
         let u = match enroll_options.unit_count {
             Some(r) => r.to_string(),
             None => "".to_string(),
         };
 
         if validate {
-            self._process_post_response(
-                self.client
-                    .post(base_edit_url)
-                    .form(&[
-                        // These are required
-                        ("section", &*enroll_options.section_id),
-                        ("termcode", self.term),
-                        // These are optional.
-                        ("subjcode", ""),
-                        ("crsecode", ""),
-                    ])
-                    .header(COOKIE, &self.cookies)
-                    .header(USER_AGENT, MY_USER_AGENT)
-                    .send()
-                    .await,
-            )
-            .await?;
+            self.validate_add_section(is_enroll, &enroll_options)
+                .await?;
         }
 
         self._process_post_response(
@@ -2052,6 +2108,31 @@ pub struct EnrollWaitAdd<'a> {
     pub unit_count: Option<u8>,
 }
 
+impl<'a> EnrollWaitAdd<'a> {
+    /// Creates a new `EnrollWaitAdd` structure with the specified `section_id` and default grading
+    /// option and unit count.
+    ///
+    /// # Parameters
+    /// - `section_id`: The section ID.
+    ///
+    /// # Returns
+    /// The structure.
+    pub fn new(section_id: &'a str) -> Self {
+        Self {
+            section_id,
+            grading_option: None,
+            unit_count: None,
+        }
+    }
+}
+
+// This trait may be helpful later.
+impl<'a> AsRef<EnrollWaitAdd<'a>> for EnrollWaitAdd<'a> {
+    fn as_ref(&self) -> &EnrollWaitAdd<'a> {
+        self
+    }
+}
+
 /// Use this struct to add more information regarding the course that you want to plan.
 pub struct PlanAdd<'a> {
     /// The subject code. For example, `CSE`.
@@ -2267,6 +2348,12 @@ impl<'a> SearchRequestBuilder<'a> {
     pub fn only_allow_open(mut self) -> Self {
         self.only_open = true;
         self
+    }
+}
+
+impl<'a> Default for SearchRequestBuilder<'a> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

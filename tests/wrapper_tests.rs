@@ -52,7 +52,10 @@ async fn test_get_course_info() {
     assert_eq!(36, math_155a[0].total_seats);
     assert_eq!(36, math_155a[1].total_seats);
     // The professor teaching it is Sam, Steven V.
-    assert_eq!(vec!["Buss, Samuel R".to_string()], math_155a[0].all_instructors);
+    assert_eq!(
+        vec!["Buss, Samuel R".to_string()],
+        math_155a[0].all_instructors
+    );
     // There are five meetings -- a lecture, discussion, final, and 2 review sessions
     assert_eq!(5, math_155a[0].meetings.len());
 
@@ -141,7 +144,10 @@ async fn test_instructor() {
     let cse_100 = cse_100.unwrap();
     assert_eq!(3, cse_100.len());
     // Test both sections of 100
-    assert_eq!(vec!["Sahoo, Debashis".to_string()], cse_100[0].all_instructors);
+    assert_eq!(
+        vec!["Sahoo, Debashis".to_string()],
+        cse_100[0].all_instructors
+    );
     assert_eq!(vec!["Cao, Yingjun".to_string()], cse_100[1].all_instructors);
     assert_eq!(vec!["Cao, Yingjun".to_string()], cse_100[2].all_instructors);
 }
@@ -224,7 +230,10 @@ async fn test_search_mult_sec() {
 
     // Next is Math 180A
     assert_eq!("MATH 180A", math_180a.subj_course_id);
-    assert_eq!(vec!["Kolesnik, Brett T".to_string()], math_180a.all_instructors);
+    assert_eq!(
+        vec!["Kolesnik, Brett T".to_string()],
+        math_180a.all_instructors
+    );
     assert_eq!("A06", math_180a.section_code);
 
     // Last is LIGN 101
@@ -356,13 +365,11 @@ async fn test_other_instructors() {
     let cse_30_inst = vec!["Muller, P Keith".to_string()];
     assert!(cse_30.iter().all(|x| x.all_instructors == cse_30_inst));
 
-
     let psyc_194c = wrapper.get_course_info("psyc", "194c").await;
     assert!(psyc_194c.is_ok());
     let psyc_194c = psyc_194c.unwrap();
     assert_eq!(22, psyc_194c.len());
 }
-
 
 /// Literally just designed for me to test random things with the wrapper.
 #[tokio::test]
