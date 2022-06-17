@@ -964,9 +964,9 @@ impl<'a> WebRegWrapper<'a> {
     ///             .filter_courses_by(CourseLevelFilter::UpperDivision)
     ///             .add_department("CSE")
     ///             .add_department("MATH")
-    ///             .apply_days(DayOfWeek::Monday)
-    ///             .apply_days(DayOfWeek::Wednesday)
-    ///             .apply_days(DayOfWeek::Friday)
+    ///             .apply_day(DayOfWeek::Monday)
+    ///             .apply_day(DayOfWeek::Wednesday)
+    ///             .apply_day(DayOfWeek::Friday)
     ///             .set_start_time(10, 0)
     ///             .set_end_time(12 + 5, 30)
     ///     ))
@@ -1370,7 +1370,7 @@ impl<'a> WebRegWrapper<'a> {
     /// # async fn main() {
     /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
     ///
-    /// let res = wrapper.validate_add_to_plan(PlanAdd {
+    /// let res = wrapper.validate_add_to_plan(&PlanAdd {
     ///     subject_code: "CSE",
     ///     course_code: "100",
     ///     section_id: "079911",
@@ -1380,7 +1380,7 @@ impl<'a> WebRegWrapper<'a> {
     ///     // Put in default schedule
     ///     schedule_name: None,
     ///     unit_count: 4
-    /// }, true).await;
+    /// }).await;
     ///
     /// match res {
     ///     Ok(o) => println!("{}", if o { "Successful, planning is good" } else { "Unsuccessful" }),
@@ -2336,7 +2336,7 @@ impl<'a> SearchRequestBuilder<'a> {
     ///
     /// # Returns
     /// The `SearchRequestBuilder`
-    pub fn apply_days(mut self, day: DayOfWeek) -> Self {
+    pub fn apply_day(mut self, day: DayOfWeek) -> Self {
         let day = match day {
             DayOfWeek::Monday => 1,
             DayOfWeek::Tuesday => 2,
