@@ -69,7 +69,7 @@ impl ToString for CourseSection {
 }
 
 /// A meeting. Usually represents a lecture, final exam, discussion, and more.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Eq, PartialEq)]
 pub struct Meeting {
     /// The meeting type. For example, this can be `LE`, `FI`, `DI`, etc.
     pub meeting_type: String,
@@ -96,7 +96,7 @@ pub struct Meeting {
 }
 
 /// An enum that represents the meeting days for a section meeting.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum MeetingDay {
     /// The meeting is repeated. In this case, each element in the vector will be one of the

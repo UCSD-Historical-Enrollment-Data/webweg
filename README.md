@@ -44,8 +44,8 @@ To get your authentication cookies, you'll need to do the following:
 
 Keep in mind that your cookies will expire after either:
 - 10 minutes of inactivity (i.e. you do not make some request that uses your
-  cookies for more than 10 minutes).
-- *or*, when WebReg goes into maintenance mode; this occurs daily at around
+  cookies for more than 10 minutes), or
+- when WebReg goes into maintenance mode; this occurs daily at around
   4:15AM pacific time.
 
 Thus, you will need to find some way to keep yourself logged into WebReg 24/7
