@@ -23,4 +23,4 @@ jobs:
     - name: Clippy
       run: cargo clippy
     - name: Format
-      run: cargo fmt check
+      run: cargo fmt --check
