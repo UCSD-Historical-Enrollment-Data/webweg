@@ -1,4 +1,13 @@
-# webweg
+<p align="center">
+  <img src="https://github.com/webweg/UCSDHistEnrollData/blob/stable/assets/banner_webweg.png?raw=true"  alt="Project Banner"/>
+</p>
+
+<p align="center">
+  <b>webweg</b> |
+  <a href="https://github.com/ewang2002/webreg_scraper">webreg_scraper</a> |
+  <a href="https://github.com/ewang2002/UCSDHistEnrollData">UCSDHistEnrollmentData</a>
+</p>
+
 An asynchronous API wrapper, written in Rust, for UCSD's 
 [WebReg](https://act.ucsd.edu/webreg2/start) course enrollment system.
 
