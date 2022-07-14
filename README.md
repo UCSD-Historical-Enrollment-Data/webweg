@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://github.com/webweg/UCSDHistEnrollData/blob/stable/assets/banner_webweg.png?raw=true"  alt="Project Banner"/>
+  <img src="https://raw.githubusercontent.com/ewang2002/webweg/stable/assets/banner_webweg.png"  alt="Project Banner"/>
 </p>
 
 <p align="center">
