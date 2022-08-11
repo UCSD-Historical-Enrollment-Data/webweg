@@ -354,7 +354,7 @@ mod test_search {
         assert!(adv_search.contains("CSE 30"));
         assert!(adv_search.contains("CSE 106"));
         assert!(adv_search.contains("CSE 142"));
-        assert_eq!(4, adv_search.len());
+        assert_eq!(5, adv_search.len());
     }
 
     #[tokio::test]
@@ -375,7 +375,7 @@ mod test_search {
             ))
             .await
             .unwrap();
-        assert_eq!(52, res.len());
+        assert_eq!(53, res.len());
     }
 
     #[tokio::test]
@@ -400,5 +400,15 @@ mod test_search {
             .await
             .unwrap();
         assert_eq!(22, res.len());
+    }
+
+    // Random test function -- used to debug by printing.
+    #[tokio::test]
+    async fn test_random() {
+        let wrapper = get_wrapper();
+        match wrapper.get_prereqs("MATH", "3C").await {
+            Ok(p) => println!("{:?}", p),
+            Err(e) => println!("{}", e),
+        };
     }
 }

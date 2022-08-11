@@ -259,3 +259,48 @@ pub struct RawScheduledMeeting {
     #[serde(rename = "WT_POS")]
     pub waitlist_pos: String,
 }
+
+/// An enum that represents a prerequisite type. Generally, WebReg displays prerequisites as either
+/// a course requirement or a test requirement.
+///
+/// If we're working with a course requirement, then WebReg will categorize each course requirement
+/// by its `PREREQ_SEQ_ID`. For example, if course prerequisite A and B has PREREQ_SEQ_ID 1 and
+/// course prerequisite C has PREREQ_SEQ_ID 2, then this means that the prerequisites for this
+/// course is
+/// - one of A or B, and
+/// - C.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(tag = "TYPE")]
+pub enum RawPrerequisite {
+    #[serde(rename = "TEST")]
+    Test(RawTestPrerequisite),
+
+    #[serde(rename = "COURSE")]
+    Course(RawCoursePrerequisite),
+}
+
+// Don't use inline struct in enum since that makes pattern matching unnecessary later.
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RawTestPrerequisite {
+    #[serde(rename = "TEST_TITLE")]
+    pub test_title: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RawCoursePrerequisite {
+    #[serde(rename = "SUBJECT_CODE")]
+    pub subject_code: String,
+
+    #[serde(rename = "PREREQ_SEQ_ID")]
+    pub prereq_seq_id: String,
+
+    #[serde(rename = "CRSE_TITLE")]
+    pub course_title: String,
+
+    #[serde(rename = "COURSE_CODE")]
+    pub course_code: String,
+
+    // This always seem to be 450 or 600 or some multiple of 50.
+    #[serde(rename = "GRADE_SEQ_ID")]
+    pub grade_seq_id: String,
+}
