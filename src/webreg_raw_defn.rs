@@ -262,13 +262,13 @@ pub struct RawScheduledMeeting {
 
 /// An enum that represents a prerequisite type. Generally, WebReg displays prerequisites as either
 /// a course requirement or a test requirement.
-/// 
+///
 /// If we're working with a course requirement, then WebReg will categorize each course requirement
 /// by its `PREREQ_SEQ_ID`. For example, if course prerequisite A and B has PREREQ_SEQ_ID 1 and
 /// course prerequisite C has PREREQ_SEQ_ID 2, then this means that the prerequisites for this
 /// course is
 /// - one of A or B, and
-/// - C. 
+/// - C.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "TYPE")]
 pub enum RawPrerequisite {
@@ -276,7 +276,7 @@ pub enum RawPrerequisite {
     Test(RawTestPrerequisite),
 
     #[serde(rename = "COURSE")]
-    Course(RawCoursePrerequisite)
+    Course(RawCoursePrerequisite),
 }
 
 // Don't use inline struct in enum since that makes pattern matching unnecessary later.

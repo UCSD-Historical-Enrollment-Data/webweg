@@ -408,7 +408,7 @@ mod test_search {
         let wrapper = get_wrapper();
         match wrapper.get_prereqs("MATH", "3C").await {
             Ok(p) => println!("{:?}", p),
-            Err(e) => println!("{}", e)
+            Err(e) => println!("{}", e),
         };
     }
 }

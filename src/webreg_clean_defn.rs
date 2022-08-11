@@ -257,10 +257,10 @@ pub enum EnrollmentStatus {
 pub struct PrerequisiteInfo {
     /// Any course prerequsiites. This is a vector of vector of prerequisites,
     /// where each vector contains one or more prerequisites. Any prerequisites
-    /// in the same vector means that you only need one of those prerequisites to 
+    /// in the same vector means that you only need one of those prerequisites to
     /// fulfill that requirement.
-    /// 
-    /// For example, if this value was `[[a, b], [c, d, e], [f]], then this means 
+    ///
+    /// For example, if this value was `[[a, b], [c, d, e], [f]], then this means
     /// that you need
     /// - one of 'a' or 'b', *and*
     /// - one of 'c', 'd', or 'e', *and*
@@ -268,12 +268,12 @@ pub struct PrerequisiteInfo {
     pub course_prerequisites: Vec<Vec<CoursePrerequisite>>,
 
     /// Any exam prerequisites. Exam prerequisites will satisfy all of the requirements
-    /// defined by course prerequisites. In other words, if you satisfy one of the 
+    /// defined by course prerequisites. In other words, if you satisfy one of the
     /// exam prerequisites, you automatically satisfy all of the course prerequisites.
-    pub exam_prerequisites: Vec<String>
+    pub exam_prerequisites: Vec<String>,
 }
 
-/// A course prerequisite. 
+/// A course prerequisite.
 #[derive(Debug, Clone, Serialize)]
 pub struct CoursePrerequisite {
     /// The subject, course ID. For example, `CSE 100`.
