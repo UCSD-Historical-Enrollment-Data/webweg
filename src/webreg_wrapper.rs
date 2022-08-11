@@ -1,8 +1,12 @@
 use crate::webreg_clean_defn::{
-    CourseSection, EnrollmentStatus, Meeting, MeetingDay, ScheduledSection,
+    CoursePrerequisite, CourseSection, EnrollmentStatus, Meeting, MeetingDay, PrerequisiteInfo,
+    ScheduledSection,
 };
 use crate::webreg_helper;
-use crate::webreg_raw_defn::{RawScheduledMeeting, RawWebRegMeeting, RawWebRegSearchResultItem};
+use crate::webreg_raw_defn::{
+    RawCoursePrerequisite, RawPrerequisite, RawScheduledMeeting, RawWebRegMeeting,
+    RawWebRegSearchResultItem,
+};
 use reqwest::header::{COOKIE, USER_AGENT};
 use reqwest::{Client, Error, Response};
 use serde::de::DeserializeOwned;
@@ -49,6 +53,8 @@ const ENROLL_DROP: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/dro
 const WAITLIST_ADD: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/add-wait";
 const WAITLIST_EDIT: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/edit-wait";
 const WAILIST_DROP: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/drop-wait";
+
+const PREREQS_INFO: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/get-prerequisites?";
 
 /// The generic type is the return value. Otherwise, regardless of request type,
 /// we're just returning the error string if there is an error.
@@ -181,6 +187,123 @@ impl<'a> WebRegWrapper<'a> {
                 }
             }
         }
+    }
+
+    /// Gets all prerequisites for a specified course for the term set by the wrapper.
+    ///
+    /// # Parameters
+    /// - `subject_code`: The subject code. For example, if you wanted to check `MATH 100B`, you
+    /// would put `MATH`.
+    /// - `course_code`: The course code. For example, if you wanted to check `MATH 100B`, you
+    /// would put `100B`.
+    ///
+    /// # Returns
+    /// All prerequisites for the specified course. This is a structure that has two fields: one
+    /// for all exam prerequisites, and one for all course prerequisites.
+    ///
+    ///
+    /// ### Course Prerequisites
+    ///
+    /// This is a vector of vector of prerequisites, where each vector contains one or
+    /// more prerequisites. Any prerequisites in the same vector means that you only need
+    /// one of those prerequisites to fulfill that requirement.
+    ///
+    /// For example, if this value was `[[a, b], [c, d, e], [f]], then this means
+    /// that you need
+    /// - one of 'a' or 'b', *and*
+    /// - one of 'c', 'd', or 'e', *and*
+    /// - f.
+    ///
+    ///
+    /// ### Exam Prerequisites
+    /// Exam prerequisites will satisfy all of the requirements defined by course prerequisites.
+    /// In other words, if you satisfy one of the exam prerequisites, you automatically satisfy
+    /// all of the course prerequisites.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::webreg_wrapper::WebRegWrapper;
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
+    /// // Get all prerequisites
+    /// let prereqs = wrapper.get_prereqs("MATH", "20C").await;
+    /// match prereqs {
+    ///     Ok(o) => {
+    ///         println!("Exam prerequisites: {:?}", o.exam_prerequisites);
+    ///         println!("Course prerequisites: {:?}", o.course_prerequisites);
+    ///     },
+    ///     Err(e) => eprintln!("Error when getting prerequisites! {}", e)
+    /// };
+    /// # }
+    /// ```
+    pub async fn get_prereqs(
+        &self,
+        subject_code: &str,
+        course_code: &str,
+    ) -> Output<'a, PrerequisiteInfo> {
+        let url = Url::parse_with_params(
+            PREREQS_INFO,
+            &[
+                ("subjcode", subject_code),
+                ("crsecode", course_code),
+                ("termcode", self.term),
+                ("_", self._get_epoch_time().to_string().as_str()),
+            ],
+        )
+        .unwrap();
+
+        let res = self
+            ._process_get_result::<Vec<RawPrerequisite>>(
+                self.client
+                    .get(url)
+                    .header(COOKIE, &self.cookies)
+                    .header(USER_AGENT, MY_USER_AGENT)
+                    .send()
+                    .await,
+            )
+            .await?;
+
+        let mut all_reqs = PrerequisiteInfo {
+            course_prerequisites: vec![],
+            exam_prerequisites: vec![],
+        };
+
+        if res.is_empty() {
+            return Ok(all_reqs);
+        }
+
+        let mut req_map: HashMap<&str, Vec<&RawCoursePrerequisite>> = HashMap::new();
+        for r in &res {
+            match r {
+                RawPrerequisite::Course(c) => {
+                    req_map.entry(&c.prereq_seq_id).or_insert(vec![]).push(c)
+                }
+                RawPrerequisite::Test(t) => all_reqs
+                    .exam_prerequisites
+                    .push(t.test_title.trim().to_string()),
+            }
+        }
+
+        for (_, reqs) in req_map {
+            let mut cleaned_reqs: Vec<CoursePrerequisite> = vec![];
+            for req in reqs {
+                cleaned_reqs.push(CoursePrerequisite {
+                    subj_course_id: format!(
+                        "{} {}",
+                        req.subject_code.trim(),
+                        req.course_code.trim()
+                    ),
+                    course_title: req.course_title.trim().to_string(),
+                });
+            }
+
+            all_reqs.course_prerequisites.push(cleaned_reqs);
+        }
+
+        Ok(all_reqs)
     }
 
     /// Gets your current schedule.

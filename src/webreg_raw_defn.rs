@@ -273,27 +273,34 @@ pub struct RawScheduledMeeting {
 #[serde(tag = "TYPE")]
 pub enum RawPrerequisite {
     #[serde(rename = "TEST")]
-    Test {
-        #[serde(rename = "TEST_TITLE")]
-        test_title: String,
-    },
+    Test(RawTestPrerequisite),
 
     #[serde(rename = "COURSE")]
-    Course {
-        #[serde(rename = "SUBJECT_CODE")]
-        subject_code: String,
+    Course(RawCoursePrerequisite)
+}
 
-        #[serde(rename = "PREREQ_SEQ_ID")]
-        prereq_seq_id: i32,
+// Don't use inline struct in enum since that makes pattern matching unnecessary later.
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RawTestPrerequisite {
+    #[serde(rename = "TEST_TITLE")]
+    pub test_title: String,
+}
 
-        #[serde(rename = "CRSE_TITLE")]
-        course_title: String,
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RawCoursePrerequisite {
+    #[serde(rename = "SUBJECT_CODE")]
+    pub subject_code: String,
 
-        #[serde(rename = "COURSE_CODE")]
-        course_code: String,
+    #[serde(rename = "PREREQ_SEQ_ID")]
+    pub prereq_seq_id: String,
 
-        // This always seem to be 450.
-        #[serde(rename = "GRADE_SEQ_ID")]
-        grade_seq_id: i32,
-    }
+    #[serde(rename = "CRSE_TITLE")]
+    pub course_title: String,
+
+    #[serde(rename = "COURSE_CODE")]
+    pub course_code: String,
+
+    // This always seem to be 450 or 600 or some multiple of 50.
+    #[serde(rename = "GRADE_SEQ_ID")]
+    pub grade_seq_id: String,
 }
