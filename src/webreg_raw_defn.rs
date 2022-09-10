@@ -272,9 +272,11 @@ pub struct RawScheduledMeeting {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "TYPE")]
 pub enum RawPrerequisite {
+    /// Whether the prerequisite is a test/exam.
     #[serde(rename = "TEST")]
     Test(RawTestPrerequisite),
 
+    /// Whether the prerequisite is a course.
     #[serde(rename = "COURSE")]
     Course(RawCoursePrerequisite),
 }
@@ -282,25 +284,71 @@ pub enum RawPrerequisite {
 // Don't use inline struct in enum since that makes pattern matching unnecessary later.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RawTestPrerequisite {
+    /// The name of the test/exam.
     #[serde(rename = "TEST_TITLE")]
     pub test_title: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RawCoursePrerequisite {
+    /// The subject code. For example, `CSE` or `MATH` are both possible option.
     #[serde(rename = "SUBJECT_CODE")]
     pub subject_code: String,
 
+    /// The group that this prerequisite is in. For example, if there are two prerequisites
+    /// with ID 1, then this means you just need ONE of those two prerequisites.
     #[serde(rename = "PREREQ_SEQ_ID")]
     pub prereq_seq_id: String,
 
+    /// The name of the course.
     #[serde(rename = "CRSE_TITLE")]
     pub course_title: String,
 
+    /// The course code. For example, `100A` is a possible option.
     #[serde(rename = "COURSE_CODE")]
     pub course_code: String,
 
     // This always seem to be 450 or 600 or some multiple of 50.
     #[serde(rename = "GRADE_SEQ_ID")]
     pub grade_seq_id: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct RawEvent {
+    /// The location of the event.
+    #[serde(rename = "LOCATION")]
+    pub location: String,
+
+    /// The start time. Guaranteed to be length 4, where the first
+    /// two characters is the hour and the last two are minutes.
+    #[serde(rename = "START_TIME")]
+    pub start_time: String,
+
+    /// The end time. Guaranteed to be length 4, where the first
+    /// two characters is the hour and the last two are minutes.
+    #[serde(rename = "END_TIME")]
+    pub end_time: String,
+
+    /// A description of the event. AKA the name of the event.
+    #[serde(rename = "DESCRIPTION")]
+    pub description: String,
+
+    /// The days that this event will occur, represented as a binary
+    /// string. This is guaranteed to be length 7, where `0` means the
+    /// day is not selected and `1` means the day is selected. The first
+    /// bit will always be Monday, the second will always be Tuesday,
+    /// and the last bit will always be Sunday. In other words, the binary
+    /// string is formatted like so:
+    /// ```txt
+    ///     MON TUE WED THU FRI SAT SUN
+    /// ```
+    /// So, for example, if we have `1010111`, then this means that Monday,
+    /// Wednesday, Friday, Saturday, and Sunday are selected.
+    #[serde(rename = "DAYS")]
+    pub days: String,
+
+    /// The timestamp, representing when the event was created. Use this
+    /// value to remove an event.
+    #[serde(rename = "TIME_STAMP")]
+    pub time_stamp: String,
 }
