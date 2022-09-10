@@ -1,10 +1,10 @@
 use crate::webreg_clean_defn::{
-    CoursePrerequisite, CourseSection, EnrollmentStatus, Meeting, MeetingDay, PrerequisiteInfo,
-    ScheduledSection,
+    CoursePrerequisite, CourseSection, EnrollmentStatus, Event, Meeting, MeetingDay,
+    PrerequisiteInfo, ScheduledSection,
 };
-use crate::webreg_helper;
+use crate::webreg_helper::{self, parse_binary_days};
 use crate::webreg_raw_defn::{
-    RawCoursePrerequisite, RawPrerequisite, RawScheduledMeeting, RawWebRegMeeting,
+    RawCoursePrerequisite, RawEvent, RawPrerequisite, RawScheduledMeeting, RawWebRegMeeting,
     RawWebRegSearchResultItem,
 };
 use reqwest::header::{COOKIE, USER_AGENT};
@@ -55,6 +55,11 @@ const WAITLIST_EDIT: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/e
 const WAILIST_DROP: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/drop-wait";
 
 const PREREQS_INFO: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/get-prerequisites?";
+
+const EVENT_ADD: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/event-add";
+const EVENT_EDIT: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/event-edit";
+const EVENT_REMOVE: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/event-remove";
+const EVENT_GET: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/event-get?";
 
 /// The generic type is the return value. Otherwise, regardless of request type,
 /// we're just returning the error string if there is an error.
@@ -147,7 +152,10 @@ impl<'a> WebRegWrapper<'a> {
 
         match res {
             Err(_) => false,
-            Ok(r) => self._internal_is_valid(&r.text().await.unwrap()),
+            Ok(r) => match &r.text().await {
+                Ok(res) => self._internal_is_valid(res),
+                Err(_) => false,
+            },
         }
     }
 
@@ -179,7 +187,11 @@ impl<'a> WebRegWrapper<'a> {
         match res {
             Err(_) => "".into(),
             Ok(r) => {
-                let name = r.text().await.unwrap();
+                let name = match r.text().await {
+                    Ok(o) => o,
+                    Err(_) => return "".into(),
+                };
+
                 if self._internal_is_valid(&name) {
                     name.into()
                 } else {
@@ -2042,6 +2054,207 @@ impl<'a> WebRegWrapper<'a> {
         .await
     }
 
+    /// Adds an event to your WebReg calendar, or edits an existing event.
+    ///
+    /// # Parameter
+    /// - `event_info`: The details of the event.
+    /// - `event_timestamp`: The timestamp corresponding to the event that you want to
+    /// edit. If this is `None`, then this function will add the event. If this is `Some`,
+    /// then this function will edit an existing event.
+    ///
+    /// # Returns
+    /// `true` if the process succeeded, or a string containing the error message from WebReg if
+    /// something wrong happened.
+    ///
+    /// # Example
+    /// Renaming the schedule "`Test Schedule`" to "`Another Schedule`."
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::webreg_wrapper::{DayOfWeek, WebRegWrapper};
+    /// use webweg::webreg_wrapper::EventAdd;
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
+    /// let event = EventAdd {
+    ///     event_name: "Clown on AYU",
+    ///     location: Some("B250"),
+    ///     event_days: vec![DayOfWeek::Monday, DayOfWeek::Friday],
+    ///     start_hr: 5,
+    ///     start_min: 30,
+    ///     end_hr: 10,
+    ///     end_min: 45,
+    /// };
+    ///
+    /// // Adding an event
+    /// wrapper.add_or_edit_event(event, None).await;
+    ///
+    /// // Editing an event (commenting this out since we moved `event` in the previous line)
+    /// // wrapper.add_or_edit_event(event, Some("2022-09-09 21:50:16.846885")).await;
+    /// # }
+    /// ```
+    pub async fn add_or_edit_event(
+        &self,
+        event_info: EventAdd<'a>,
+        event_timestamp: Option<&'a str>,
+    ) -> Output<'a, bool> {
+        let start_time_full = event_info.start_hr * 100 + event_info.start_min;
+        let end_time_full = event_info.end_hr * 100 + event_info.end_min;
+        if start_time_full >= end_time_full {
+            return Err("Start time must be less than end time.".into());
+        }
+
+        if event_info.event_days.is_empty() {
+            return Err("Must specify one day.".into());
+        }
+
+        let mut days: [bool; 7] = [false; 7];
+        for d in event_info.event_days {
+            let idx = match d {
+                DayOfWeek::Monday => 0,
+                DayOfWeek::Tuesday => 1,
+                DayOfWeek::Wednesday => 2,
+                DayOfWeek::Thursday => 3,
+                DayOfWeek::Friday => 4,
+                DayOfWeek::Saturday => 5,
+                DayOfWeek::Sunday => 6,
+            };
+
+            days[idx] = true;
+        }
+
+        let mut day_str = String::new();
+        for d in days {
+            day_str.push(if d { '1' } else { '0' });
+        }
+
+        assert_eq!(7, day_str.len());
+
+        let start_time_full = start_time_full.to_string();
+        let end_time_full = start_time_full.to_string();
+        let mut form_data = HashMap::from([
+            ("termcode", self.term),
+            ("aename", event_info.event_name),
+            ("aestarttime", &*start_time_full),
+            ("aeendtime", &*end_time_full),
+            ("aelocation", event_info.location.unwrap_or("")),
+            ("aedays", &*day_str),
+        ]);
+
+        if let Some(timestamp) = event_timestamp {
+            form_data.insert("aetimestamp", timestamp);
+        }
+
+        self._process_post_response(
+            self.client
+                .post(match event_timestamp {
+                    Some(_) => EVENT_EDIT,
+                    None => EVENT_ADD,
+                })
+                .form(&form_data)
+                .header(COOKIE, &self.cookies)
+                .header(USER_AGENT, MY_USER_AGENT)
+                .send()
+                .await,
+        )
+        .await
+    }
+
+    /// Removes an event from your WebReg calendar.
+    ///
+    /// # Parameter
+    /// - `event_timestamp`: The timestamp corresponding to the event that you want to
+    /// remove.
+    ///
+    /// # Returns
+    /// `true` if the process succeeded, or a string containing the error message from WebReg if
+    /// something wrong happened.
+    ///
+    /// # Example
+    /// Renaming the schedule "`Test Schedule`" to "`Another Schedule`."
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::webreg_wrapper::WebRegWrapper;
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
+    /// // Removing an event
+    /// wrapper.remove_event("2022-09-09 21:50:16.846885").await;
+    /// # }
+    /// ```
+    pub async fn remove_event(&self, event_timestamp: &'a str) -> Output<'a, bool> {
+        self._process_post_response(
+            self.client
+                .post(EVENT_REMOVE)
+                .form(&[("aetimestamp", event_timestamp), ("termcode", self.term)])
+                .header(COOKIE, &self.cookies)
+                .header(USER_AGENT, MY_USER_AGENT)
+                .send()
+                .await,
+        )
+        .await
+    }
+
+    /// Gets all event from your WebReg calendar.
+    ///
+    /// # Returns
+    /// A vector of all events, or `None` if an error occurred.
+    ///
+    /// # Example
+    /// Renaming the schedule "`Test Schedule`" to "`Another Schedule`."
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::webreg_wrapper::WebRegWrapper;
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
+    /// // Get all my events
+    /// let all_events = wrapper.get_events().await;
+    /// # }
+    /// ```
+    pub async fn get_events(&self) -> Output<'a, Vec<Event>> {
+        let url = Url::parse_with_params(EVENT_GET, &[("termcode", self.term)]).unwrap();
+        let raw_events = self
+            ._process_get_result::<Vec<RawEvent>>(
+                self.client
+                    .get(url)
+                    .header(COOKIE, &self.cookies)
+                    .header(USER_AGENT, MY_USER_AGENT)
+                    .send()
+                    .await,
+            )
+            .await?;
+
+        let mut res = vec![];
+        for event in raw_events {
+            let start_chars = event.start_time.chars().collect::<Vec<_>>();
+            let start_hr = start_chars[0].to_digit(10).unwrap_or_default()
+                * start_chars[1].to_digit(10).unwrap_or_default();
+            let start_min = start_chars[2].to_digit(10).unwrap_or_default()
+                * start_chars[3].to_digit(10).unwrap_or_default();
+            let end_chars = event.end_time.chars().collect::<Vec<_>>();
+            let end_hr = end_chars[0].to_digit(10).unwrap_or_default()
+                * end_chars[1].to_digit(10).unwrap_or_default();
+            let end_min = end_chars[2].to_digit(10).unwrap_or_default()
+                * end_chars[3].to_digit(10).unwrap_or_default();
+
+            res.push(Event {
+                location: event.location,
+                start_hr: start_hr as i16,
+                start_min: start_min as i16,
+                end_hr: end_hr as i16,
+                end_min: end_min as i16,
+                name: event.description,
+                days: parse_binary_days(&event.days),
+                timestamp: event.time_stamp,
+            });
+        }
+
+        Ok(res)
+    }
+
     /// Gets all of your schedules.
     ///
     /// # Returns
@@ -2316,6 +2529,28 @@ pub struct PlanAdd<'a> {
     pub schedule_name: Option<&'a str>,
     /// The number of units.
     pub unit_count: u8,
+}
+
+/// A struct that represents an event to be added.
+pub struct EventAdd<'a> {
+    /// The name of the event. This is required.
+    pub event_name: &'a str,
+    /// The location of the event. This is optional.
+    pub location: Option<&'a str>,
+    /// The days that this event will be held.
+    pub event_days: Vec<DayOfWeek>,
+    /// The hour start time. For example, if the event starts at
+    /// 3:50 PM, use `15` (since `12 + 3 = 15`).
+    pub start_hr: i16,
+    /// The minute start time. For example, if the event starts at
+    /// 3:50 PM, use `50`.
+    pub start_min: i16,
+    /// The hour end time. For example, if the event ends at 3:50 PM,
+    /// use `15` (since `12 + 3 = 15`).
+    pub end_hr: i16,
+    /// The minute end time. For example, if the event ends at 3:50 PM,
+    /// use `50`.
+    pub end_min: i16,
 }
 
 /// Used to construct search requests for the `search_courses` function.

@@ -282,3 +282,24 @@ pub struct CoursePrerequisite {
     /// The course title, for example `Advanced Data Structure`.
     pub course_title: String,
 }
+
+/// An event on WebReg.
+#[derive(Debug, Clone, Serialize)]
+pub struct Event {
+    /// The location of the event.
+    pub location: String,
+    /// The start hour. For example, if the meeting starts at 14:15, this would be `14`.
+    pub start_hr: i16,
+    /// The start minute. For example, if the meeting starts at 14:15, this would be `15`.
+    pub start_min: i16,
+    /// The end hour. For example, if the meeting ends at 15:05, this would be `15`.
+    pub end_hr: i16,
+    /// The end minute. For example, if the meeting ends at 15:05, this would be `5`.
+    pub end_min: i16,
+    /// The name of the event.
+    pub name: String,
+    /// The days that this event will occur.
+    pub days: Vec<String>,
+    /// The time when this event was created.
+    pub timestamp: String,
+}

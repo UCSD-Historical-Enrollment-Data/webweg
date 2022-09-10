@@ -39,11 +39,14 @@ pub fn parse_meeting_type_date(w_meeting: &RawWebRegMeeting) -> (&str, MeetingDa
 /// Parses the days of the week from a day code string.
 ///
 /// # Parameters
-/// - `dow_str`: The day code string. This should only contain integers between 0 and 6, both
-/// inclusive.
+/// - `day_code_str`: The day code string. This should only contain integers between 0 and 6, both
+/// inclusive. 
 ///
 /// # Returns
 /// A string with the days of the week.
+/// 
+/// # Example
+/// An input of `135` would return `["M", "W", "F"]`.
 pub fn parse_day_code(day_code_str: &str) -> Vec<String> {
     let mut s = vec![];
     day_code_str.chars().for_each(|c| {
@@ -64,4 +67,33 @@ pub fn parse_day_code(day_code_str: &str) -> Vec<String> {
     });
 
     s
+}
+
+const DAYS: [&str; 7] = ["M", "Tu", "W", "Th", "F", "Sa", "Su"];
+
+/// Parses a binary string representing the days that are active.
+/// 
+/// # Parameters
+/// - `bin_str`: The binary string. Must be length 7. The first bit
+/// represents Monday, the second bit represents Tuesday, and so on.
+/// The `1` bit means that the day is active, and the `0` bit means 
+/// the day is inactive.
+/// 
+/// # Returns
+/// A string with the days of the week.
+/// 
+/// # Example
+/// An input of `1010101` would return `["M", "W", "F", "Su"]`.
+pub fn parse_binary_days(bin_str: &str) -> Vec<String> {
+    let mut days = vec![];
+    if bin_str.len() == 7 {
+        let day_vec = bin_str.chars().collect::<Vec<_>>();
+        for (idx, day) in DAYS.iter().enumerate() {
+            if day_vec[idx] == '1' {
+                days.push(day.to_string());
+            }
+        }
+    }
+
+    days
 }
