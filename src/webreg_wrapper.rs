@@ -2104,6 +2104,14 @@ impl<'a> WebRegWrapper<'a> {
             return Err("Start time must be less than end time.".into());
         }
 
+        if event_info.start_hr < 7 || event_info.start_hr > 12 + 10 {
+            return Err("Start hour must be between 7 and 22 (7am and 10pm)".into());
+        }
+
+        if event_info.start_hr == 12 + 10 && event_info.start_min != 0 {
+            return Err("You cannot exceed 10pm.".into());
+        }
+
         if event_info.event_days.is_empty() {
             return Err("Must specify one day.".into());
         }
@@ -2130,8 +2138,16 @@ impl<'a> WebRegWrapper<'a> {
 
         assert_eq!(7, day_str.len());
 
-        let start_time_full = start_time_full.to_string();
-        let end_time_full = start_time_full.to_string();
+        let mut start_time_full = start_time_full.to_string();
+        let mut end_time_full = end_time_full.to_string();
+        while start_time_full.len() < 4 {
+            start_time_full.insert(0, '0');
+        }
+
+        while end_time_full.len() < 4 {
+            end_time_full.insert(0, '0');
+        }
+
         let mut form_data = HashMap::from([
             ("termcode", self.term),
             ("aename", event_info.event_name),
