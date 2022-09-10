@@ -336,7 +336,7 @@ pub struct RawEvent {
     /// The days that this event will occur, represented as a binary
     /// string. This is guaranteed to be length 7, where `0` means the
     /// day is not selected and `1` means the day is selected. The first
-    /// bit will always be Monday, the second will always be Tuesday, 
+    /// bit will always be Monday, the second will always be Tuesday,
     /// and the last bit will always be Sunday. In other words, the binary
     /// string is formatted like so:
     /// ```txt
