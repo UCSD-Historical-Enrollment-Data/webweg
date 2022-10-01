@@ -5,8 +5,8 @@ use std::collections::HashSet;
 use std::fs;
 use std::hash::Hash;
 use std::path::Path;
-use webweg::webreg_clean_defn::{CourseSection, Meeting};
-use webweg::webreg_wrapper::WebRegWrapper;
+use webweg::types::{CourseSection, Meeting};
+use webweg::wrapper::WebRegWrapper;
 
 const TERM: &str = "FA22";
 
@@ -66,7 +66,7 @@ where
 
 #[cfg(test)]
 mod test_course_info {
-    use webweg::webreg_clean_defn::MeetingDay;
+    use webweg::types::MeetingDay;
 
     use crate::{check_list_eq, get_all_meetings, get_wrapper};
 
@@ -278,7 +278,9 @@ mod test_course_info {
 mod test_search {
     use std::collections::HashSet;
 
-    use webweg::webreg_wrapper::{CourseLevelFilter, DayOfWeek, SearchRequestBuilder, SearchType};
+    use webweg::wrapper::{
+        CourseLevelFilter, DayOfWeek, PlanAdd, SearchRequestBuilder, SearchType,
+    };
 
     use crate::get_wrapper;
 
@@ -406,9 +408,17 @@ mod test_search {
     #[tokio::test]
     async fn test_random() {
         let wrapper = get_wrapper();
-        match wrapper.get_prereqs("MATH", "3C").await {
-            Ok(p) => println!("{:?}", p),
-            Err(e) => println!("{}", e),
-        };
+        let res = wrapper
+            .add_to_plan(PlanAdd {
+                subject_code: "MUS",
+                course_code: "19R",
+                section_id: "090571",
+                section_code: "B10",
+                grading_option: None,
+                schedule_name: None,
+                unit_count: 4,
+            }, true)
+            .await;
+        println!("{:?}", res);
     }
 }

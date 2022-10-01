@@ -307,10 +307,10 @@
 //! ## License
 //! Everything in this repository is licensed under the MIT license.
 
-mod webreg_helper;
+mod util;
 
-pub mod webreg_clean_defn;
-pub mod webreg_raw_defn;
-pub mod webreg_wrapper;
+pub mod types;
+pub mod raw_types;
+pub mod wrapper;
 
 pub use reqwest;

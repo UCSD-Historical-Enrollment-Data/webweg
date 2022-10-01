@@ -1,9 +1,9 @@
-use crate::webreg_clean_defn::{
+use crate::types::{
     CoursePrerequisite, CourseSection, EnrollmentStatus, Event, Meeting, MeetingDay,
     PrerequisiteInfo, ScheduledSection,
 };
-use crate::webreg_helper::{self, parse_binary_days};
-use crate::webreg_raw_defn::{
+use crate::util::{self, parse_binary_days};
+use crate::raw_types::{
     RawCoursePrerequisite, RawEvent, RawPrerequisite, RawScheduledMeeting, RawWebRegMeeting,
     RawWebRegSearchResultItem,
 };
@@ -463,7 +463,7 @@ impl<'a> WebRegWrapper<'a> {
                     meeting_days: if main.day_code.trim().is_empty() {
                         MeetingDay::None
                     } else {
-                        MeetingDay::Repeated(webreg_helper::parse_day_code(main.day_code.trim()))
+                        MeetingDay::Repeated(util::parse_day_code(main.day_code.trim()))
                     },
                     start_min: main.start_time_min,
                     start_hr: main.start_time_hr,
@@ -502,7 +502,7 @@ impl<'a> WebRegWrapper<'a> {
                 .filter(|x| !x.sect_code.ends_with("00"))
                 .map(|x| Meeting {
                     meeting_type: x.meeting_type.to_string(),
-                    meeting_days: MeetingDay::Repeated(webreg_helper::parse_day_code(&x.day_code)),
+                    meeting_days: MeetingDay::Repeated(util::parse_day_code(&x.day_code)),
                     start_min: x.start_time_min,
                     start_hr: x.start_time_hr,
                     end_min: x.end_time_min,
@@ -516,7 +516,10 @@ impl<'a> WebRegWrapper<'a> {
             // At this point, we now want to look for data like section capacity, number of
             // students on the waitlist, and so on.
             let wl_count = match sch_meetings.iter().find(|x| x.count_on_waitlist.is_some()) {
-                Some(r) => r.count_on_waitlist.unwrap(),
+                Some(r) => match r.count_on_waitlist {
+                    Some(o) => o,
+                    None => return Err("no waitlist property found".into())
+                },
                 None => 0,
             };
 
@@ -525,7 +528,10 @@ impl<'a> WebRegWrapper<'a> {
                     .iter()
                     .find(|x| x.waitlist_pos.chars().all(|y| y.is_numeric()))
                 {
-                    Some(r) => r.waitlist_pos.parse::<i64>().unwrap(),
+                    Some(r) => match r.waitlist_pos.parse::<i64>() {
+                        Ok(o) => o,
+                        Err(e) => return Err(e.to_string().into()),
+                    },
                     None => 0,
                 }
             } else {
@@ -580,7 +586,7 @@ impl<'a> WebRegWrapper<'a> {
             let parsed_day_code = if day_code.is_empty() {
                 MeetingDay::None
             } else {
-                MeetingDay::Repeated(webreg_helper::parse_day_code(&day_code))
+                MeetingDay::Repeated(util::parse_day_code(&day_code))
             };
 
             let section_capacity = sch_meetings[0].section_capacity.unwrap_or(-1);
@@ -816,7 +822,7 @@ impl<'a> WebRegWrapper<'a> {
             // Next, we check to see if the meeting is a special meeting. To do so, we can just
             // check to make sure the first character in the section code is a digit (e.g. *0*01)
             if meeting.sect_code.as_bytes()[0].is_ascii_digit() {
-                let (m_type, m_days) = webreg_helper::parse_meeting_type_date(&meeting);
+                let (m_type, m_days) = util::parse_meeting_type_date(&meeting);
                 sections.push(CourseSection {
                     subj_course_id: course_dept_id.clone(),
                     section_id: meeting.section_id.trim().to_string(),
@@ -938,7 +944,7 @@ impl<'a> WebRegWrapper<'a> {
             // meetings to).
             let process_meetings = |from: &[&RawWebRegMeeting], to: &mut Vec<Meeting>| {
                 for meeting in from {
-                    let (m_m_type, m_days) = webreg_helper::parse_meeting_type_date(meeting);
+                    let (m_m_type, m_days) = util::parse_meeting_type_date(meeting);
 
                     to.push(Meeting {
                         meeting_type: m_m_type.to_string(),
@@ -1378,7 +1384,10 @@ impl<'a> WebRegWrapper<'a> {
                 if !r.status().is_success() {
                     false
                 } else {
-                    r.text().await.unwrap().contains("\"YES\"")
+                    match r.text().await {
+                        Ok(o) => o.contains("\"YES\""),
+                        Err(_) => false,
+                    }
                 }
             }
         }
@@ -1454,12 +1463,12 @@ impl<'a> WebRegWrapper<'a> {
             .into_iter()
             .find(|x| x.section_id == section_id[left_idx..]);
 
-        if poss_class.is_none() {
-            return Err("Class not found.".into());
-        }
-
         // don't care about previous poss_class
-        let poss_class = poss_class.unwrap();
+        let poss_class = match poss_class {
+            Some(s) => s,
+            None => return Err("Class not found.".into()),
+        };
+
         let sec_id = poss_class.section_id.to_string();
         let units = poss_class.units.to_string();
 
@@ -1959,6 +1968,7 @@ impl<'a> WebRegWrapper<'a> {
                 });
 
                 let json: Value = serde_json::from_str(&text).unwrap_or_default();
+                // Use of unwrap here is safe since we know that there is a boolean value beforehand
                 json["SESSION_OK"].is_boolean() && json["SESSION_OK"].as_bool().unwrap()
             }
         }
