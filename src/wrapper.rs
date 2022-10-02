@@ -67,6 +67,7 @@ pub enum WrapperError {
     #[error("request error occurred: {0}")]
     RequestError(#[from] reqwest::Error),
 
+    /// Occurs when there was an error with serde.
     #[error("serde error occurred: {0}")]
     SerdeError(#[from] serde_json::Error),
 
@@ -74,15 +75,20 @@ pub enum WrapperError {
     #[error("unsuccessful status code: {0}")]
     BadStatusCode(u16),
 
+    /// Occurs when an error from WebReg was returned.
     #[error("error from WebReg: {0}")]
     WebRegError(String),
 
+    /// Occurs when the given input is not valid.
     #[error("invalid input for '{0}' provided: {1}")]
     InputError(&'static str, &'static str),
 
+    /// The general error, given when the particular error doesn't
+    /// fit into any of the other categories.
     #[error("error: {0}")]
     GeneralError(String),
 
+    /// Occurs when there was an error parsing the URL.
     #[error("malformed url: {0}")]
     UrlParseError(#[from] url::ParseError),
 }
@@ -393,8 +399,7 @@ impl WebRegWrapper {
                 ("termcode", self.term.as_str()),
                 ("_", self.get_epoch_time().to_string().as_str()),
             ],
-        )
-        .unwrap();
+        )?;
 
         let res = self
             ._process_get_result::<Vec<RawScheduledMeeting>>(
@@ -706,8 +711,7 @@ impl WebRegWrapper {
                 ("termcode", self.term.as_str()),
                 ("_", self.get_epoch_time().to_string().as_ref()),
             ],
-        )
-        .unwrap();
+        )?;
 
         let meetings = self
             ._process_get_result::<Vec<RawWebRegMeeting>>(
@@ -814,8 +818,7 @@ impl WebRegWrapper {
                 ("termcode", self.term.as_str()),
                 ("_", self.get_epoch_time().to_string().as_ref()),
             ],
-        )
-        .unwrap();
+        )?;
 
         let parsed = self
             ._process_get_result::<Vec<RawWebRegMeeting>>(
@@ -1184,10 +1187,7 @@ impl WebRegWrapper {
             SearchType::Advanced(_) => {}
         };
 
-        let search_res = match self.search_courses(filter_by).await {
-            Ok(r) => r,
-            Err(e) => return Err(e),
-        };
+        let search_res = self.search_courses(filter_by).await?;
 
         let mut vec: Vec<CourseSection> = vec![];
         for r in search_res {
@@ -1231,16 +1231,14 @@ impl WebRegWrapper {
             SearchType::BySection(section) => Url::parse_with_params(
                 WEBREG_SEARCH_SEC,
                 &[("sectionid", section), ("termcode", self.term.as_str())],
-            )
-            .unwrap(),
+            )?,
             SearchType::ByMultipleSections(sections) => Url::parse_with_params(
                 WEBREG_SEARCH_SEC,
                 &[
                     ("sectionid", sections.join(":").as_str()),
                     ("termcode", self.term.as_str()),
                 ],
-            )
-            .unwrap(),
+            )?,
             SearchType::Advanced(request_filter) => {
                 let subject_code = if request_filter.subjects.is_empty() {
                     "".to_string()
@@ -1350,8 +1348,7 @@ impl WebRegWrapper {
                         ("termcode", self.term.as_str()),
                         ("_", self.get_epoch_time().to_string().as_str()),
                     ],
-                )
-                .unwrap()
+                )?
             }
         };
 
@@ -1391,15 +1388,14 @@ impl WebRegWrapper {
     ///     .send_email_to_self("Hello, world! This will be sent to you via email.")
     ///     .await;
     ///
-    /// if res {
-    ///     println!("Sent successfully.");
-    /// } else {
-    ///     eprintln!("Failed to send.");
-    /// }
+    /// match res {
+    ///     Ok(_) => println!("Sent successfully."),
+    ///     Err(e) => eprintln!("Error! {}", e)
+    /// };
     /// # }
     /// ```
-    pub async fn send_email_to_self(&self, email_content: &str) -> bool {
-        let res = self
+    pub async fn send_email_to_self(&self, email_content: &str) -> self::Result<()> {
+        let r = self
             .client
             .post(SEND_EMAIL)
             .form(&[
@@ -1409,20 +1405,17 @@ impl WebRegWrapper {
             .header(COOKIE, &self.cookies)
             .header(USER_AGENT, MY_USER_AGENT)
             .send()
-            .await;
+            .await?;
 
-        match res {
-            Err(_) => false,
-            Ok(r) => {
-                if !r.status().is_success() {
-                    false
-                } else {
-                    match r.text().await {
-                        Ok(o) => o.contains("\"YES\""),
-                        Err(_) => false,
-                    }
-                }
-            }
+        if !r.status().is_success() {
+            return Err(WrapperError::BadStatusCode(r.status().as_u16()));
+        }
+
+        let t = r.text().await?;
+        if t.contains("\"YES\"") {
+            Ok(())
+        } else {
+            Err(WrapperError::WebRegError(t))
         }
     }
 
@@ -2356,8 +2349,7 @@ impl WebRegWrapper {
     /// Either a vector of strings representing the names of the schedules, or the error that
     /// occurred.
     pub async fn get_schedule_list(&self) -> self::Result<Vec<String>> {
-        let url =
-            Url::parse_with_params(ALL_SCHEDULE, &[("termcode", self.term.as_str())]).unwrap();
+        let url = Url::parse_with_params(ALL_SCHEDULE, &[("termcode", self.term.as_str())])?;
 
         self._process_get_result::<Vec<String>>(
             self.client
