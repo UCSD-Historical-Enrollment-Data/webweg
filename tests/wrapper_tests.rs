@@ -14,7 +14,7 @@ const TERM: &str = "FA22";
 ///
 /// # Returns
 /// The new wrapper.
-pub fn get_wrapper() -> WebRegWrapper<'static> {
+pub fn get_wrapper() -> WebRegWrapper {
     let file = Path::new("cookie.txt");
     if !file.exists() {
         panic!("File 'cookie.txt' does not exist.");
@@ -377,7 +377,7 @@ mod test_search {
             ))
             .await
             .unwrap();
-        assert_eq!(53, res.len());
+        assert_eq!(54, res.len());
     }
 
     #[tokio::test]
