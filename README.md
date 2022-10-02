@@ -20,7 +20,7 @@ webweg = { git = "https://github.com/ewang2002/webweg", branch = "stable" }
 
 ## Wrapper Features
 A lot of the crucial things that you can do on WebReg can be done with this 
-interface. For example, you're able to:
+wrapper. For example, you're able to:
 - Get all possible classes in the quarter.
 - Search for classes based on some conditions (i.e. Advanced Search). 
 - Get detailed information about a specific class (e.g. number of students 
@@ -65,7 +65,7 @@ if you want to perform continuous requests.
 To use the wrapper, you need to create a new instance of it. For example:
 ```rs
 use reqwest::Client;
-use webweg::webreg_wrapper::WebRegWrapper;
+use webweg::wrapper::WebRegWrapper;
 
 let term = "SP22";
 // For authentication cookies, see previous section.
@@ -139,7 +139,7 @@ of Math 184, and one section of POLI 28 (for Winter 2022). The following
 code will do just that: 
 
 ```rs
-use webweg::webreg_wrapper::SearchType;
+use webweg::wrapper::SearchType;
 
 let search_res = w
     .search_courses_detailed(SearchType::ByMultipleSections(&[
@@ -156,7 +156,7 @@ Example 2: Suppose we wanted to search for any lower- or upper-division
 CSE course. We can use the following code:
 
 ```rs 
-use webweg::webreg_wrapper::{CourseLevelFilter, SearchRequestBuilder};
+use webweg::wrapper::{CourseLevelFilter, SearchRequestBuilder};
 
 let search_res = w
     .search_courses_detailed(SearchType::Advanced(
@@ -221,8 +221,8 @@ do this.
 
 ```rs
 use std::time::Duration;
-use webweg::webreg_clean_defn::EnrollmentStatus;
-use webweg::webreg_wrapper::EnrollWaitAdd;
+use webweg::types::EnrollmentStatus;
+use webweg::wrapper::EnrollWaitAdd;
 
 let section_res = w
     .search_courses_detailed(SearchType::BySection("078616"))
@@ -290,12 +290,12 @@ match rem_res {
 
 ## Definition Files
 This crate comes with two definition files:
-- `webreg_raw_defn`
-- `webreg_clean_defn`
+- `raw_types`
+- `types`
 
 Most wrapper methods will make use of return types which can be found in
-`webreg_clean_defn`. Very rarely will you need to use `webreg_raw_defn`;
-the only time you will need to use `webreg_clean_defn` is if you're using
+`types`. Very rarely will you need to use `raw_types`;
+the only time you will need to use `raw_types` is if you're using
 the `search_courses` method.
 
 ## Tests
