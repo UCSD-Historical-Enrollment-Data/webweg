@@ -409,15 +409,18 @@ mod test_search {
     async fn test_random() {
         let wrapper = get_wrapper();
         let res = wrapper
-            .add_to_plan(PlanAdd {
-                subject_code: "MUS",
-                course_code: "19R",
-                section_id: "090571",
-                section_code: "B10",
-                grading_option: None,
-                schedule_name: None,
-                unit_count: 4,
-            }, true)
+            .add_to_plan(
+                PlanAdd {
+                    subject_code: "MUS",
+                    course_code: "19R",
+                    section_id: "090571",
+                    section_code: "B10",
+                    grading_option: None,
+                    schedule_name: None,
+                    unit_count: 4,
+                },
+                true,
+            )
             .await;
         println!("{:?}", res);
     }

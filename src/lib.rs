@@ -309,8 +309,8 @@
 
 mod util;
 
-pub mod types;
 pub mod raw_types;
+pub mod types;
 pub mod wrapper;
 
 pub use reqwest;
