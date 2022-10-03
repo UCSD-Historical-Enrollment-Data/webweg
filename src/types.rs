@@ -28,6 +28,8 @@ pub struct CourseSection {
     pub meetings: Vec<Meeting>,
     /// Whether you need to waitlist this.
     pub needs_waitlist: bool,
+    /// Whether this is visible on WebReg
+    pub is_visible: bool,
 }
 
 impl CourseSection {

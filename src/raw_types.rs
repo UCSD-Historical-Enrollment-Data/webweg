@@ -143,6 +143,25 @@ pub struct RawWebRegMeeting {
     /// - `N` if the section does not need to be waitlisted.
     #[serde(rename = "STP_ENRLT_FLAG")]
     pub needs_waitlist: String,
+
+    /// No idea what this does, but I'm assuming this tells you if the section
+    /// is visible on WebReg.
+    /// - `" "` (an empty space) or `"Y"` if it is visible, and
+    /// - `"N"` if it is not visible.
+    #[serde(rename = "PRINT_FLAG")]
+    pub print_flag: String,
+}
+
+impl RawWebRegMeeting {
+    /// Whether the meeting is visible on WebReg.
+    ///
+    /// I don't know if this actually works. 
+    ///
+    /// # Returns
+    /// `true` if the meeting is visible on WebReg, and `false` otherwise.
+    pub fn is_visible(&self) -> bool {
+        self.print_flag.as_str() == "Y" || self.print_flag == " "
+    }
 }
 
 /// A meeting that you have enrolled in. Note that this doesn't represent a class by itself, but

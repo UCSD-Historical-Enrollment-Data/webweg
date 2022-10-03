@@ -1,3 +1,5 @@
+#![allow(unused_qualifications)]
+
 use crate::raw_types::{
     RawCoursePrerequisite, RawEvent, RawPrerequisite, RawScheduledMeeting, RawWebRegMeeting,
     RawWebRegSearchResultItem,
@@ -750,6 +752,7 @@ impl WebRegWrapper {
             // Only want available sections, AC = displayed
             .filter(|x| x.display_type == "AC")
             .map(|x| CourseSection {
+                is_visible: x.is_visible(),
                 subj_course_id: format!(
                     "{} {}",
                     subject_code.as_ref().trim(),
@@ -857,6 +860,7 @@ impl WebRegWrapper {
             if meeting.sect_code.as_bytes()[0].is_ascii_digit() {
                 let (m_type, m_days) = util::parse_meeting_type_date(&meeting);
                 sections.push(CourseSection {
+                    is_visible: meeting.is_visible(),
                     subj_course_id: course_dept_id.clone(),
                     section_id: meeting.section_id.trim().to_string(),
                     section_code: meeting.sect_code.trim().to_string(),
@@ -1005,6 +1009,7 @@ impl WebRegWrapper {
                 // be reflected across both structures accurately, so there's no need to search
                 // for one particular meeting.
                 let mut section = CourseSection {
+                    is_visible: entry.general_meetings[0].is_visible(),
                     subj_course_id: course_dept_id.clone(),
                     section_id: entry.general_meetings[0].section_id.clone(),
                     section_code: entry.general_meetings[0].sect_code.clone(),
@@ -1035,6 +1040,7 @@ impl WebRegWrapper {
 
                 // Process the general section info.
                 let mut section = CourseSection {
+                    is_visible: c_meeting.is_visible(),
                     subj_course_id: course_dept_id.clone(),
                     section_id: c_meeting.section_id.clone(),
                     section_code: c_meeting.sect_code.clone(),
@@ -2029,7 +2035,7 @@ impl WebRegWrapper {
     /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
     /// // You should do error handling here, but I won't
     /// assert!(!wrapper.get_schedule_list().await.unwrap().contains(&"Another Schedule".to_string()));
-    /// wrapper.rename_schedule("Test Schedule", "Another Schedule").await;
+    /// wrapper.rename_schedule("Test Schedule", "Another Schedule").await.expect("an error occurred");
     /// assert!(wrapper.get_schedule_list().await.unwrap().contains(&"Another Schedule".to_string()));
     /// # }
     /// ```
@@ -2082,7 +2088,7 @@ impl WebRegWrapper {
     /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
     /// // You should do error handling here, but I won't
     /// assert!(wrapper.get_schedule_list().await.unwrap().contains(&"Test Schedule".to_string()));
-    /// wrapper.remove_schedule("Test Schedule").await;
+    /// wrapper.remove_schedule("Test Schedule").await.expect("an error occurred");
     /// assert!(!wrapper.get_schedule_list().await.unwrap().contains(&"Test Schedule".to_string()));
     /// # }
     /// ```
@@ -2143,7 +2149,7 @@ impl WebRegWrapper {
     /// };
     ///
     /// // Adding an event
-    /// wrapper.add_or_edit_event(event, None).await;
+    /// wrapper.add_or_edit_event(event, None).await.expect("an error occurred");
     ///
     /// // Editing an event (commenting this out since we moved `event` in the previous line)
     /// // wrapper.add_or_edit_event(event, Some("2022-09-09 21:50:16.846885")).await;
@@ -2265,7 +2271,7 @@ impl WebRegWrapper {
     /// # async fn main() {
     /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
     /// // Removing an event
-    /// wrapper.remove_event("2022-09-09 21:50:16.846885").await;
+    /// wrapper.remove_event("2022-09-09 21:50:16.846885").await.expect("an error occurred");
     /// # }
     /// ```
     pub async fn remove_event(&self, event_timestamp: impl AsRef<str>) -> self::Result<bool> {
