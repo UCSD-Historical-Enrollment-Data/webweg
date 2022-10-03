@@ -1996,20 +1996,19 @@ impl WebRegWrapper {
             .send()
             .await;
 
-        match res {
-            Err(_) => false,
-            Ok(r) => {
-                let text = r.text().await.unwrap_or_else(|_| {
-                    json!({
-                        "SESSION_OK": false
-                    })
-                    .to_string()
-                });
+        if let Ok(r) = res {
+            let text = r.text().await.unwrap_or_else(|_| {
+                json!({
+                    "SESSION_OK": false
+                })
+                .to_string()
+            });
 
-                let json: Value = serde_json::from_str(&text).unwrap_or_default();
-                // Use of unwrap here is safe since we know that there is a boolean value beforehand
-                json["SESSION_OK"].is_boolean() && json["SESSION_OK"].as_bool().unwrap()
-            }
+            let json: Value = serde_json::from_str(&text).unwrap_or_default();
+            // Use of unwrap here is safe since we know that there is a boolean value beforehand
+            json["SESSION_OK"].is_boolean() && json["SESSION_OK"].as_bool().unwrap()
+        } else {
+            false
         }
     }
 
@@ -2465,6 +2464,7 @@ impl WebRegWrapper {
     ///
     /// # Returns
     /// The current time.
+    #[inline(always)]
     fn get_epoch_time(&self) -> u128 {
         SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
@@ -2506,6 +2506,7 @@ impl WebRegWrapper {
     ///
     /// # Returns
     /// The parsed instructor's names, as a vector.
+    #[inline(always)]
     fn get_instructor_names(&self, instructor_name: &str) -> Vec<String> {
         // The instructor string is in the form
         // name1    ;pid1:name2      ;pid2:...:nameN      ;pidN
@@ -2528,6 +2529,7 @@ impl WebRegWrapper {
     ///
     /// # Returns
     /// A vector of instructors, with no duplicates.
+    #[inline(always)]
     fn get_all_instructors<I>(&self, instructors: I) -> Vec<String>
     where
         I: Iterator<Item = String>,
