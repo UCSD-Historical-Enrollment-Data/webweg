@@ -155,7 +155,7 @@ pub struct RawWebRegMeeting {
 impl RawWebRegMeeting {
     /// Whether the meeting is visible on WebReg.
     ///
-    /// I don't know if this actually works. 
+    /// I don't know if this actually works.
     ///
     /// # Returns
     /// `true` if the meeting is visible on WebReg, and `false` otherwise.

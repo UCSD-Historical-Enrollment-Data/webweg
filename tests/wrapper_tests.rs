@@ -272,6 +272,40 @@ mod test_course_info {
                 && x.meetings.iter().any(|x| x.meeting_type == "DI")
                 && x.meetings.iter().any(|x| x.meeting_type == "FI")));
     }
+
+    #[tokio::test]
+    pub async fn test_hidden_sections() {
+        let wrapper = get_wrapper();
+        let mus_19r = wrapper
+            .get_course_info("MUS", "19R")
+            .await
+            .expect("MUS 19R should be a thing here.");
+
+        // For MUS 19R, section A should all be visible, but section B is all invisible
+        assert!(mus_19r
+            .iter()
+            .filter(|x| &x.section_code[..1] == "A")
+            .all(|x| x.is_visible));
+        assert!(mus_19r
+            .iter()
+            .filter(|x| &x.section_code[..1] == "B")
+            .all(|x| !x.is_visible));
+
+        // For EDS 124AR, section A+B should all be visible, but section C+D is all invisible
+        let eds_124ar = wrapper
+            .get_course_info("EDS", "124AR")
+            .await
+            .expect("EDS 124AR should be a thing here.");
+
+        assert!(eds_124ar
+            .iter()
+            .filter(|x| ["A", "B"].contains(&&x.section_code[..1]))
+            .all(|x| x.is_visible));
+        assert!(eds_124ar
+            .iter()
+            .filter(|x| ["C", "D"].contains(&&x.section_code[..1]))
+            .all(|x| !x.is_visible));
+    }
 }
 
 #[cfg(test)]
