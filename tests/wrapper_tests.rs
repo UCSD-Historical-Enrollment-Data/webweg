@@ -305,6 +305,21 @@ mod test_course_info {
             .iter()
             .filter(|x| ["C", "D"].contains(&&x.section_code[..1]))
             .all(|x| !x.is_visible));
+
+        // For EDS 124BR, section A should all be visible, but section B is all invisible
+        let eds_124ar = wrapper
+            .get_course_info("EDS", "124BR")
+            .await
+            .expect("EDS 124BR should be a thing here.");
+
+        assert!(eds_124ar
+            .iter()
+            .filter(|x| &x.section_code[..1] == "A")
+            .all(|x| x.is_visible));
+        assert!(eds_124ar
+            .iter()
+            .filter(|x| &x.section_code[..1] == "B")
+            .all(|x| !x.is_visible));
     }
 }
 
