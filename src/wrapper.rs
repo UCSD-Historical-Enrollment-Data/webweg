@@ -890,11 +890,10 @@ impl WebRegWrapper {
         let mut map: HashMap<char, GroupedSection<RawWebRegMeeting>> = HashMap::new();
         for meeting in &unprocessed_meetings {
             // Get the section family, which *should* exist (i.e., no panic should occur here).
-            let sec_fam = meeting
-                .sect_code
-                .chars()
-                .next()
-                .ok_or_else(|| WrapperError::GeneralError("Non-existent section code.".into()))?;
+            let sec_fam =
+                meeting.sect_code.chars().next().ok_or_else(|| {
+                    WrapperError::GeneralError("Non-existent section code.".into())
+                })?;
 
             let entry = map.entry(sec_fam).or_insert(GroupedSection {
                 child_meetings: vec![],
