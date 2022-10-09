@@ -1,5 +1,5 @@
-use crate::webreg_clean_defn::MeetingDay;
-use crate::webreg_raw_defn::RawWebRegMeeting;
+use crate::raw_types::RawWebRegMeeting;
+use crate::types::MeetingDay;
 
 /// Gets the meeting type (e.g. Lecture, Final Exam, Discussion, etc.) and the meeting time from
 /// an arbitrary `WebRegMeeting`.

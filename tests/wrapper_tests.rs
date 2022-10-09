@@ -5,8 +5,8 @@ use std::collections::HashSet;
 use std::fs;
 use std::hash::Hash;
 use std::path::Path;
-use webweg::webreg_clean_defn::{CourseSection, Meeting};
-use webweg::webreg_wrapper::WebRegWrapper;
+use webweg::types::{CourseSection, Meeting};
+use webweg::wrapper::WebRegWrapper;
 
 const TERM: &str = "FA22";
 
@@ -14,7 +14,7 @@ const TERM: &str = "FA22";
 ///
 /// # Returns
 /// The new wrapper.
-pub fn get_wrapper() -> WebRegWrapper<'static> {
+pub fn get_wrapper() -> WebRegWrapper {
     let file = Path::new("cookie.txt");
     if !file.exists() {
         panic!("File 'cookie.txt' does not exist.");
@@ -66,7 +66,7 @@ where
 
 #[cfg(test)]
 mod test_course_info {
-    use webweg::webreg_clean_defn::MeetingDay;
+    use webweg::types::MeetingDay;
 
     use crate::{check_list_eq, get_all_meetings, get_wrapper};
 
@@ -272,13 +272,64 @@ mod test_course_info {
                 && x.meetings.iter().any(|x| x.meeting_type == "DI")
                 && x.meetings.iter().any(|x| x.meeting_type == "FI")));
     }
+
+    #[tokio::test]
+    pub async fn test_hidden_sections() {
+        let wrapper = get_wrapper();
+        let mus_19r = wrapper
+            .get_course_info("MUS", "19R")
+            .await
+            .expect("MUS 19R should be a thing here.");
+
+        // For MUS 19R, section A should all be visible, but section B is all invisible
+        assert!(mus_19r
+            .iter()
+            .filter(|x| &x.section_code[..1] == "A")
+            .all(|x| x.is_visible));
+        assert!(mus_19r
+            .iter()
+            .filter(|x| &x.section_code[..1] == "B")
+            .all(|x| !x.is_visible));
+
+        // For EDS 124AR, section A+B should all be visible, but section C+D is all invisible
+        let eds_124ar = wrapper
+            .get_course_info("EDS", "124AR")
+            .await
+            .expect("EDS 124AR should be a thing here.");
+
+        assert!(eds_124ar
+            .iter()
+            .filter(|x| ["A", "B"].contains(&&x.section_code[..1]))
+            .all(|x| x.is_visible));
+        assert!(eds_124ar
+            .iter()
+            .filter(|x| ["C", "D"].contains(&&x.section_code[..1]))
+            .all(|x| !x.is_visible));
+
+        // For EDS 124BR, section A should all be visible, but section B is all invisible
+        let eds_124ar = wrapper
+            .get_course_info("EDS", "124BR")
+            .await
+            .expect("EDS 124BR should be a thing here.");
+
+        assert!(eds_124ar
+            .iter()
+            .filter(|x| &x.section_code[..1] == "A")
+            .all(|x| x.is_visible));
+        assert!(eds_124ar
+            .iter()
+            .filter(|x| &x.section_code[..1] == "B")
+            .all(|x| !x.is_visible));
+    }
 }
 
 #[cfg(test)]
 mod test_search {
     use std::collections::HashSet;
 
-    use webweg::webreg_wrapper::{CourseLevelFilter, DayOfWeek, SearchRequestBuilder, SearchType};
+    use webweg::wrapper::{
+        CourseLevelFilter, DayOfWeek, PlanAdd, SearchRequestBuilder, SearchType,
+    };
 
     use crate::get_wrapper;
 
@@ -375,7 +426,7 @@ mod test_search {
             ))
             .await
             .unwrap();
-        assert_eq!(53, res.len());
+        assert_eq!(54, res.len());
     }
 
     #[tokio::test]
@@ -406,9 +457,20 @@ mod test_search {
     #[tokio::test]
     async fn test_random() {
         let wrapper = get_wrapper();
-        match wrapper.get_prereqs("MATH", "3C").await {
-            Ok(p) => println!("{:?}", p),
-            Err(e) => println!("{}", e),
-        };
+        let res = wrapper
+            .add_to_plan(
+                PlanAdd {
+                    subject_code: "MUS",
+                    course_code: "19R",
+                    section_id: "090571",
+                    section_code: "B10",
+                    grading_option: None,
+                    schedule_name: None,
+                    unit_count: 4,
+                },
+                true,
+            )
+            .await;
+        println!("{:?}", res);
     }
 }
