@@ -186,10 +186,10 @@ impl WebRegWrapper {
 
         match res {
             Err(_) => false,
-            Ok(r) => match &r.text().await {
-                Ok(res) => self.internal_is_valid(res),
-                Err(_) => false,
-            },
+            Ok(r) => r
+                .text()
+                .await
+                .map_or_else(|_| false, |res| self.internal_is_valid(&res)),
         }
     }
 
@@ -222,7 +222,7 @@ impl WebRegWrapper {
         if self.internal_is_valid(&name) {
             Ok(name)
         } else {
-            Ok("".into())
+            Err(WrapperError::GeneralError("Could not get name.".into()))
         }
     }
 
@@ -538,45 +538,29 @@ impl WebRegWrapper {
 
             // At this point, we now want to look for data like section capacity, number of
             // students on the waitlist, and so on.
-            let wl_count = match sch_meetings.iter().find(|x| x.count_on_waitlist.is_some()) {
-                Some(r) => match r.count_on_waitlist {
-                    Some(o) => o,
-                    None => {
-                        return Err(WrapperError::GeneralError(
-                            "no waitlist property found".into(),
-                        ))
-                    }
-                },
-                None => 0,
-            };
+            let wl_count = sch_meetings
+                .iter()
+                .find_map(|m| m.count_on_waitlist)
+                .ok_or_else(|| WrapperError::GeneralError("no waitlist property found".into()))?;
 
             let pos_on_wl = if sch_meetings[0].enroll_status == "WT" {
-                match sch_meetings
+                sch_meetings
                     .iter()
-                    .find(|x| x.waitlist_pos.chars().all(|y| y.is_numeric()))
-                {
-                    Some(r) => match r.waitlist_pos.parse::<i64>() {
-                        Ok(o) => o,
-                        Err(_) => {
-                            return Err(WrapperError::GeneralError("waitlist not parsable.".into()))
-                        }
-                    },
-                    None => 0,
-                }
+                    .find_map(|x| x.waitlist_pos.parse::<i64>().ok())
+                    .unwrap_or_default()
             } else {
                 0
             };
 
-            let enrolled_count = match sch_meetings.iter().find(|x| x.enrolled_count.is_some()) {
-                Some(r) => r.enrolled_count.unwrap(),
-                None => -1,
-            };
+            let enrolled_count = sch_meetings
+                .iter()
+                .find_map(|m| m.enrolled_count)
+                .unwrap_or(-1);
 
-            let section_capacity = match sch_meetings.iter().find(|x| x.section_capacity.is_some())
-            {
-                Some(r) => r.section_capacity.unwrap(),
-                None => -1,
-            };
+            let section_capacity = sch_meetings
+                .iter()
+                .find_map(|m| m.section_capacity)
+                .unwrap_or(-1);
 
             schedule.push(ScheduledSection {
                 section_id: sch_meetings[0].section_id.to_string(),
@@ -910,7 +894,7 @@ impl WebRegWrapper {
                 .sect_code
                 .chars()
                 .next()
-                .expect("Non-existent section code.");
+                .ok_or_else(|| WrapperError::GeneralError("Non-existent section code.".into()))?;
 
             let entry = map.entry(sec_fam).or_insert(GroupedSection {
                 child_meetings: vec![],
@@ -2384,10 +2368,7 @@ impl WebRegWrapper {
         }
 
         let text = r.text().await?;
-        match serde_json::from_str::<T>(&text) {
-            Ok(o) => Ok(o),
-            Err(e) => Err(WrapperError::SerdeError(e)),
-        }
+        serde_json::from_str::<T>(&text).map_err(WrapperError::SerdeError)
     }
 
     /// Processes a POST response from the resulting JSON, if any.
@@ -2406,6 +2387,8 @@ impl WebRegWrapper {
         }
 
         let text = r.text().await?;
+        // Unwrap should not be a problem since we should be getting a valid JSON response
+        // every time.
         let json: Value = serde_json::from_str(&text).unwrap();
         if json["OPS"].is_string() && json["OPS"].as_str().unwrap() == "SUCCESS" {
             return Ok(true);
@@ -2584,7 +2567,7 @@ impl<'a> EnrollWaitAdd<'a> {
     }
 }
 
-// This trait may be helpful later.
+// This trait implementation may be helpful later.
 impl<'a> AsRef<EnrollWaitAdd<'a>> for EnrollWaitAdd<'a> {
     fn as_ref(&self) -> &EnrollWaitAdd<'a> {
         self
