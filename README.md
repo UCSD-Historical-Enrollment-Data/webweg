@@ -70,7 +70,7 @@ use webweg::wrapper::WebRegWrapper;
 let term = "SP22";
 // For authentication cookies, see previous section.
 let cookie = "your authentication cookies here";
-let w = WebRegWrapper::new(Client::new() cookie.to_string(), term);
+let w = WebRegWrapper::new(Client::new(), cookie.to_string(), term);
 ```
 
 Once created, you're able to use the various wrapper functions. Some useful 
