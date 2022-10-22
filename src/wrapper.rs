@@ -63,6 +63,9 @@ const EVENT_EDIT: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/even
 const EVENT_REMOVE: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/event-remove";
 const EVENT_GET: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/event-get?";
 
+const STATUS_START: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/get-status-start?";
+const ELIGIBILITY: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/check-eligibility?";
+
 #[derive(Error, Debug)]
 pub enum WrapperError {
     /// Occurs if there was an error encountered by the reqwest library.
@@ -226,6 +229,65 @@ impl WebRegWrapper {
         }
     }
 
+    /// Forcefully tells WebReg to use your current term. Recall that WebReg
+    /// associates your cookies with one specific term. That is, if you use
+    /// your cookies for FA22 to access WI23 data, you will get an error.
+    ///
+    /// This method attempts to replicate the calls that WebReg itself makes
+    /// when you switch terms. Upon success, your cookies will be valid for
+    /// _that_ specific term only.
+    /// 
+    /// # Parameters
+    /// - `seqid`: The term ID. 
+    /// 
+    /// # Returns
+    /// A result, where nothing is returned if everything goes well and an
+    /// error is returned if something goes wrong.
+    pub async fn authorize_term(&self, seqid: impl AsRef<str>) -> self::Result<()> {
+        // Step 1: call get_status_start endpoint
+        let status_start_url = Url::parse_with_params(
+            STATUS_START,
+            &[
+                ("termcode", self.term.as_str()),
+                ("seqid", seqid.as_ref()),
+                ("_", self.get_epoch_time().to_string().as_str()),
+            ],
+        )?;
+
+        self.process_get_result::<Value>(
+            self.client
+                .get(status_start_url)
+                .header(COOKIE, &self.cookies)
+                .header(USER_AGENT, MY_USER_AGENT)
+                .send()
+                .await,
+        )
+        .await?;
+
+        // Step 2: call eligibility endpoint
+        let eligibility_url = Url::parse_with_params(
+            ELIGIBILITY,
+            &[
+                ("termcode", self.term.as_str()),
+                ("seqid", seqid.as_ref()),
+                ("logged", "true"),
+                ("_", self.get_epoch_time().to_string().as_str()),
+            ],
+        )?;
+
+        self.process_get_result::<Value>(
+            self.client
+                .get(eligibility_url)
+                .header(COOKIE, &self.cookies)
+                .header(USER_AGENT, MY_USER_AGENT)
+                .send()
+                .await,
+        )
+        .await?;
+
+        Ok(())
+    }
+
     /// Gets all prerequisites for a specified course for the term set by the wrapper.
     ///
     /// # Parameters
@@ -292,7 +354,7 @@ impl WebRegWrapper {
         )?;
 
         let res = self
-            ._process_get_result::<Vec<RawPrerequisite>>(
+            .process_get_result::<Vec<RawPrerequisite>>(
                 self.client
                     .get(url)
                     .header(COOKIE, &self.cookies)
@@ -404,7 +466,7 @@ impl WebRegWrapper {
         )?;
 
         let res = self
-            ._process_get_result::<Vec<RawScheduledMeeting>>(
+            .process_get_result::<Vec<RawScheduledMeeting>>(
                 self.client
                     .get(url)
                     .header(COOKIE, &self.cookies)
@@ -700,7 +762,7 @@ impl WebRegWrapper {
         )?;
 
         let meetings = self
-            ._process_get_result::<Vec<RawWebRegMeeting>>(
+            .process_get_result::<Vec<RawWebRegMeeting>>(
                 self.client
                     .get(url)
                     .header(COOKIE, &self.cookies)
@@ -808,7 +870,7 @@ impl WebRegWrapper {
         )?;
 
         let parsed = self
-            ._process_get_result::<Vec<RawWebRegMeeting>>(
+            .process_get_result::<Vec<RawWebRegMeeting>>(
                 self.client
                     .get(url)
                     .header(COOKIE, &self.cookies)
@@ -1341,7 +1403,7 @@ impl WebRegWrapper {
             }
         };
 
-        self._process_get_result::<Vec<RawWebRegSearchResultItem>>(
+        self.process_get_result::<Vec<RawWebRegSearchResultItem>>(
             self.client
                 .get(url)
                 .header(COOKIE, &self.cookies)
@@ -1486,7 +1548,7 @@ impl WebRegWrapper {
         let sec_id = poss_class.section_id.to_string();
         let units = poss_class.units.to_string();
 
-        self._process_post_response(
+        self.process_post_response(
             self.client
                 .post(CHANGE_ENROLL)
                 .form(&[
@@ -1548,7 +1610,7 @@ impl WebRegWrapper {
     /// ```
     pub async fn validate_add_to_plan(&self, plan_options: &PlanAdd<'_>) -> self::Result<bool> {
         let crsc_code = self.get_formatted_course_code(plan_options.course_code);
-        self._process_post_response(
+        self.process_post_response(
             self.client
                 .post(PLAN_EDIT)
                 .form(&[
@@ -1629,7 +1691,7 @@ impl WebRegWrapper {
                 .unwrap_or(false);
         }
 
-        self._process_post_response(
+        self.process_post_response(
             self.client
                 .post(PLAN_ADD)
                 .form(&[
@@ -1697,7 +1759,7 @@ impl WebRegWrapper {
         section_id: impl AsRef<str>,
         schedule_name: Option<&str>,
     ) -> self::Result<bool> {
-        self._process_post_response(
+        self.process_post_response(
             self.client
                 .post(PLAN_REMOVE)
                 .form(&[
@@ -1770,7 +1832,7 @@ impl WebRegWrapper {
             WAITLIST_EDIT
         };
 
-        self._process_post_response(
+        self.process_post_response(
             self.client
                 .post(base_edit_url)
                 .form(&[
@@ -1854,7 +1916,7 @@ impl WebRegWrapper {
                 .await?;
         }
 
-        self._process_post_response(
+        self.process_post_response(
             self.client
                 .post(base_reg_url)
                 .form(&[
@@ -1885,7 +1947,7 @@ impl WebRegWrapper {
         .await?;
 
         // This will always return true
-        self._process_post_response(
+        self.process_post_response(
             self.client
                 .post(PLAN_REMOVE_ALL)
                 .form(&[
@@ -1945,7 +2007,7 @@ impl WebRegWrapper {
             WAILIST_DROP
         };
 
-        self._process_post_response(
+        self.process_post_response(
             self.client
                 .post(base_reg_url)
                 .form(&[
@@ -2034,7 +2096,7 @@ impl WebRegWrapper {
             ));
         }
 
-        self._process_post_response(
+        self.process_post_response(
             self.client
                 .post(RENAME_SCHEDULE)
                 .form(&[
@@ -2083,7 +2145,7 @@ impl WebRegWrapper {
             ));
         }
 
-        self._process_post_response(
+        self.process_post_response(
             self.client
                 .post(REMOVE_SCHEDULE)
                 .form(&[
@@ -2218,7 +2280,7 @@ impl WebRegWrapper {
             form_data.insert("aetimestamp", timestamp);
         }
 
-        self._process_post_response(
+        self.process_post_response(
             self.client
                 .post(match et {
                     Some(_) => EVENT_EDIT,
@@ -2257,7 +2319,7 @@ impl WebRegWrapper {
     /// # }
     /// ```
     pub async fn remove_event(&self, event_timestamp: impl AsRef<str>) -> self::Result<bool> {
-        self._process_post_response(
+        self.process_post_response(
             self.client
                 .post(EVENT_REMOVE)
                 .form(&[
@@ -2293,7 +2355,7 @@ impl WebRegWrapper {
     pub async fn get_events(&self) -> self::Result<Vec<Event>> {
         let url = Url::parse_with_params(EVENT_GET, &[("termcode", self.term.as_str())]).unwrap();
         let raw_events = self
-            ._process_get_result::<Vec<RawEvent>>(
+            .process_get_result::<Vec<RawEvent>>(
                 self.client
                     .get(url)
                     .header(COOKIE, &self.cookies)
@@ -2339,7 +2401,7 @@ impl WebRegWrapper {
     pub async fn get_schedule_list(&self) -> self::Result<Vec<String>> {
         let url = Url::parse_with_params(ALL_SCHEDULE, &[("termcode", self.term.as_str())])?;
 
-        self._process_get_result::<Vec<String>>(
+        self.process_get_result::<Vec<String>>(
             self.client
                 .get(url)
                 .header(COOKIE, &self.cookies)
@@ -2357,7 +2419,7 @@ impl WebRegWrapper {
     ///
     /// # Returns
     /// The result of processing the response.
-    async fn _process_get_result<T: DeserializeOwned>(
+    async fn process_get_result<T: DeserializeOwned>(
         &self,
         res: Result<Response, Error>,
     ) -> self::Result<T> {
@@ -2379,7 +2441,7 @@ impl WebRegWrapper {
     /// Either one of:
     /// - `true` or `false`, depending on what WebReg returns.
     /// - or some error message if an error occurred.
-    async fn _process_post_response(&self, res: Result<Response, Error>) -> self::Result<bool> {
+    async fn process_post_response(&self, res: Result<Response, Error>) -> self::Result<bool> {
         let r = res?;
         if !r.status().is_success() {
             return Err(WrapperError::BadStatusCode(r.status().as_u16()));
