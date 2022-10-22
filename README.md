@@ -19,13 +19,13 @@ webweg = { git = "https://github.com/ewang2002/webweg", branch = "stable" }
 ```
 
 ## Wrapper Features
-A lot of the crucial things that you can do on WebReg can be done with this 
+A lot of the things that you can do on WebReg can be done with this 
 wrapper. For example, you're able to:
 - Get all possible classes in the quarter.
 - Search for classes based on some conditions (i.e. Advanced Search). 
-- Get detailed information about a specific class (e.g. number of students 
+- Get detailed information about a specific class (e.g., number of students 
 enrolled, instructor, etc.)
-- Getting your current schedule. 
+- Get your current schedule. 
 
 You're also able to do things like:
 - Change grading options. 
@@ -38,7 +38,7 @@ You're also able to do things like:
 
 ## Authentication
 The way to provide authorization for this wrapper is to provide cookies from an
-active WebReg session, i.e. your authentication cookies.
+active WebReg session (i.e., your authentication cookies).
 
 To get your authentication cookies, you'll need to do the following:
 - Log into WebReg.
@@ -48,11 +48,12 @@ To get your authentication cookies, you'll need to do the following:
 - Go to the "Network" tab of the Developer Tools. Then, either:
     - Filter by the text `https://act.ucsd.edu/webreg2/svc/wradapter`
     - OR, filter by `Fetch/XHR`.
-- Make some sort of request on WebReg (e.g. searching a course).
-- Look for a request made by WebReg. Under the request headers, copy the cookie.
+- Make some sort of request on WebReg (e.g., searching a course).
+- Look for a request made by WebReg. 
+    - Under the request headers, copy the cookie.
 
 Keep in mind that your cookies will expire after either:
-- 10 minutes of inactivity (i.e. you do not make some request that uses your
+- 10 minutes of inactivity (i.e., you do not make some request that uses your
   cookies for more than 10 minutes), or
 - when WebReg goes into maintenance mode; this occurs daily at around
   4:15AM pacific time.
@@ -72,18 +73,19 @@ let term = "SP22";
 let cookie = "your authentication cookies here";
 let w = WebRegWrapper::new(Client::new(), cookie.to_string(), term);
 ```
+For your convenience, `reqwest` is automatically exported so you can use that
+from `webweg`.
 
 Once created, you're able to use the various wrapper functions. Some useful 
 examples are shown below (note that `w` refers to the declaration above).
 
-The key idea is that a majority of the wrapper functions returns an
-`Result<T, Cow<'a, str>>`, where `T` is the result type. So, if a request
-is successful, you will get `T` back; if the request is unsuccessful, you
-will get a `Cow<'a, str>` back, which is the error string generated either
-by WebReg itself or by other means.
+Most wrapper functions will return a `Result<T, Error>`, where `T` is the 
+result type. So, if a request is successful, you'll get `T` back. If the
+request is unsuccessful, you will get back an `Error`, which contains
+information about why the request failed.
 
 ### Check Login Status
-You can check to see if you are logged in (i.e. if the wrapper can actually 
+You can check to see if you are logged in (i.e., if the wrapper can actually 
 perform any useful requests).
 ```rs
 if !w.is_valid().await {
@@ -95,7 +97,7 @@ if !w.is_valid().await {
 ### Get Schedule
 You can get your current schedule, which lists your Enrolled, Planned, and
 Waitlisted courses. You are able to fetch either the default schedule (`None`) 
-or a specific schedule (e.g. `My Schedule 2`)
+or a specific schedule (e.g., `My Schedule 2`)
 
 Example: Suppose you wanted to see what courses are currently in your *default* 
 schedule. We can use the following code:
@@ -301,11 +303,14 @@ the `search_courses` method.
 ## Tests
 Very basic tests can be found in the `tests` folder. You will need
 to provide your cookies in the `cookie.txt` file; place this file in
-the project root directory (i.e. the directory with the `src` and 
+the project root directory (i.e., the directory with the `src` and 
 `tests` directories).
 
 Due to WebReg constantly changing, making long-term tests is not
 feasible. Thus, I will only test major things.
+
+That being said, there are tests for all utility functions (things that
+can be tested in the long-term).
 
 ## Disclaimer
 I am not responsible for any damages or other issue(s) caused by 
