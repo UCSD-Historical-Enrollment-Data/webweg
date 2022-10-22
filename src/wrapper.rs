@@ -66,6 +66,8 @@ const EVENT_GET: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/event
 const STATUS_START: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/get-status-start?";
 const ELIGIBILITY: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/check-eligibility?";
 
+const VERIFY_FAIL_ERR: &str = "[{\"VERIFY\":\"FAIL\"}]";
+
 #[derive(Error, Debug)]
 pub enum WrapperError {
     /// Occurs if there was an error encountered by the reqwest library.
@@ -155,10 +157,21 @@ impl WebRegWrapper {
     /// This might be useful if you want to use the existing wrapper but need to change the
     /// cookies.
     ///
+    /// As a warning, this does NOT change the internal `term`. If this is something that
+    /// needs to be changed, either use `set_term` or -- ideally -- the `use_term` method.
+    ///
     /// # Parameters
     /// - `new_cookies`: The new cookies.
     pub fn set_cookies(&mut self, new_cookies: String) {
         self.cookies = new_cookies;
+    }
+
+    /// Sets the term to the new, specified term.
+    ///
+    /// # Parameters
+    /// - `new_term`: The term to use.
+    pub fn set_term(&mut self, new_term: String) {
+        self.term = new_term;
     }
 
     /// Checks if the current WebReg instance is valid. Specifically, this will check if you
@@ -229,27 +242,34 @@ impl WebRegWrapper {
         }
     }
 
-    /// Forcefully tells WebReg to use your current term. Recall that WebReg
-    /// associates your cookies with one specific term. That is, if you use
-    /// your cookies for FA22 to access WI23 data, you will get an error.
+    /// Switches the term that the wrapper is using to a different term.
     ///
-    /// This method attempts to replicate the calls that WebReg itself makes
-    /// when you switch terms. Upon success, your cookies will be valid for
-    /// _that_ specific term only.
+    /// This will change the `term` that is associated with this particular
+    /// wrapper.
+    ///
+    /// Note that WebReg doesn't actually do any validation with your input,
+    /// so you should ensure that the term you want to use is actually valid.
     ///
     /// # Parameters
-    /// - `seqid`: The term ID.
+    /// - `term`: The term to switch to.
     ///
     /// # Returns
     /// A result, where nothing is returned if everything goes well and an
     /// error is returned if something goes wrong.
-    pub async fn authorize_term(&self, seqid: impl AsRef<str>) -> self::Result<()> {
+    pub async fn use_term(&mut self, term: impl AsRef<str>) -> self::Result<()> {
+        let term = term.as_ref().to_uppercase();
+        let seq_id = get_term_seq_id(&term);
+        if seq_id == 0 {
+            return Err(WrapperError::InputError("term", "term is not valid."));
+        }
+
+        let seqid_str = seq_id.to_string();
         // Step 1: call get_status_start endpoint
         let status_start_url = Url::parse_with_params(
             STATUS_START,
             &[
-                ("termcode", self.term.as_str()),
-                ("seqid", seqid.as_ref()),
+                ("termcode", term.as_str()),
+                ("seqid", seqid_str.as_str()),
                 ("_", self.get_epoch_time().to_string().as_str()),
             ],
         )?;
@@ -268,8 +288,8 @@ impl WebRegWrapper {
         let eligibility_url = Url::parse_with_params(
             ELIGIBILITY,
             &[
-                ("termcode", self.term.as_str()),
-                ("seqid", seqid.as_ref()),
+                ("termcode", term.as_str()),
+                ("seqid", seqid_str.as_str()),
                 ("logged", "true"),
                 ("_", self.get_epoch_time().to_string().as_str()),
             ],
@@ -285,6 +305,7 @@ impl WebRegWrapper {
         )
         .await?;
 
+        self.term = term;
         Ok(())
     }
 
@@ -2429,7 +2450,13 @@ impl WebRegWrapper {
         }
 
         let text = r.text().await?;
-        serde_json::from_str::<T>(&text).map_err(WrapperError::SerdeError)
+        if text.contains(VERIFY_FAIL_ERR) {
+            Err(WrapperError::WebRegError(
+                "verification error; did you pick the wrong term?".into(),
+            ))
+        } else {
+            serde_json::from_str::<T>(&text).map_err(WrapperError::SerdeError)
+        }
     }
 
     /// Processes a POST response from the resulting JSON, if any.
