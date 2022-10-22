@@ -8,7 +8,7 @@ use crate::types::{
     CoursePrerequisite, CourseSection, EnrollmentStatus, Event, Meeting, MeetingDay,
     PrerequisiteInfo, ScheduledSection,
 };
-use crate::util::{self, parse_binary_days};
+use crate::util::{self, get_term_seq_id, parse_binary_days};
 use reqwest::header::{COOKIE, USER_AGENT};
 use reqwest::{Client, Error, Response};
 use serde::de::DeserializeOwned;
@@ -236,10 +236,10 @@ impl WebRegWrapper {
     /// This method attempts to replicate the calls that WebReg itself makes
     /// when you switch terms. Upon success, your cookies will be valid for
     /// _that_ specific term only.
-    /// 
+    ///
     /// # Parameters
-    /// - `seqid`: The term ID. 
-    /// 
+    /// - `seqid`: The term ID.
+    ///
     /// # Returns
     /// A result, where nothing is returned if everything goes well and an
     /// error is returned if something goes wrong.
@@ -2488,8 +2488,22 @@ impl WebRegWrapper {
     ///
     /// # Returns
     /// The current term.
+    #[inline(always)]
     pub fn get_term(&self) -> &str {
         self.term.as_str()
+    }
+
+    /// Gets the term ID.
+    ///
+    /// # Returns
+    /// The term ID.
+    ///
+    /// # Remarks
+    /// This is the same thing as using `utils::get_term_seq_id` using
+    /// the current term.
+    #[inline(always)]
+    pub fn get_curr_term_seq_id(&self) -> i64 {
+        get_term_seq_id(self.term.as_str())
     }
 
     /// Checks if the output string represents a valid session.

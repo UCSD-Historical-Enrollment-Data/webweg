@@ -307,10 +307,9 @@
 //! ## License
 //! Everything in this repository is licensed under the MIT license.
 
-mod util;
-
 pub mod raw_types;
 pub mod types;
+pub mod util;
 pub mod wrapper;
 
 pub use reqwest;
