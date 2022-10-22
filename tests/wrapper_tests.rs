@@ -474,3 +474,83 @@ mod test_search {
         println!("{:?}", res);
     }
 }
+
+#[cfg(test)]
+mod util_tests {
+    use webweg::util::{get_term_seq_id, parse_binary_days, parse_day_code};
+
+    #[test]
+    fn test_parse_day_code_simple() {
+        assert_eq!(["Su", "M", "W"].as_slice(), &parse_day_code("013"));
+    }
+
+    #[test]
+    fn test_parse_day_code_all() {
+        assert_eq!(
+            ["Su", "M", "Tu", "W", "Th", "F", "Sa"].as_slice(),
+            &parse_day_code("0123456")
+        );
+    }
+
+    #[test]
+    fn test_parse_day_code_none() {
+        assert!(parse_day_code("").is_empty());
+    }
+
+    #[test]
+    fn test_parse_day_code_out_bounds() {
+        assert_eq!(["Su", "F", "M", "Tu"].as_slice(), &parse_day_code("051928"));
+    }
+
+    #[test]
+    fn test_parse_binary_days_simple() {
+        assert_eq!(
+            ["M", "W", "F", "Su"].as_slice(),
+            &parse_binary_days("1010101")
+        );
+    }
+
+    #[test]
+    fn test_parse_binary_days_all() {
+        assert_eq!(
+            ["M", "Tu", "W", "Th", "F", "Sa", "Su"].as_slice(),
+            &parse_binary_days("1111111")
+        );
+    }
+
+    #[test]
+    fn test_parse_binary_days_none() {
+        assert!(parse_binary_days("0000000").is_empty());
+    }
+
+    #[test]
+    fn test_term_seq_id_base() {
+        assert_eq!(5200, get_term_seq_id("SP22"));
+        assert_eq!(5210, get_term_seq_id("S122"));
+        assert_eq!(5220, get_term_seq_id("S222"));
+        assert_eq!(5230, get_term_seq_id("S322"));
+        assert_eq!(5250, get_term_seq_id("FA22"));
+        assert_eq!(5260, get_term_seq_id("WI23"));
+    }
+
+    #[test]
+    fn test_term_seq_id_one_year() {
+        assert_eq!(5340, get_term_seq_id("SP24"));
+        assert_eq!(5330, get_term_seq_id("WI24"));
+        assert_eq!(5320, get_term_seq_id("FA23"));
+        assert_eq!(5300, get_term_seq_id("S323"));
+        assert_eq!(5290, get_term_seq_id("S223"));
+        assert_eq!(5280, get_term_seq_id("S123"));
+        assert_eq!(5270, get_term_seq_id("SP23"));
+        // Try using an older term, too
+        assert_eq!(5190, get_term_seq_id("WI22"));
+    }
+
+    #[test]
+    fn test_term_seq_id_invalid() {
+        // Invalid term
+        assert_eq!(0, get_term_seq_id("XX24"));
+        // Invalid year
+        assert_eq!(0, get_term_seq_id("WI2T"));
+    }
+}

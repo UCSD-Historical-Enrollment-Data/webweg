@@ -10,13 +10,13 @@
 //! ```
 //!
 //! ## Wrapper Features
-//! A lot of the crucial things that you can do on WebReg can be done with this
-//! interface. For example, you're able to:
+//! A lot of the things that you can do on WebReg can be done with this
+//! wrapper. For example, you're able to:
 //! - Get all possible classes in the quarter.
 //! - Search for classes based on some conditions (i.e. Advanced Search).
-//! - Get detailed information about a specific class (e.g. number of students
+//! - Get detailed information about a specific class (e.g., number of students
 //! enrolled, instructor, etc.)
-//! - Getting your current schedule.
+//! - Get your current schedule.
 //!
 //! You're also able to do things like:
 //! - Change grading options.
@@ -29,7 +29,7 @@
 //!
 //! ## Authentication
 //! The way to provide authorization for this wrapper is to provide cookies from an
-//! active WebReg session, i.e. your authentication cookies.
+//! active WebReg session (i.e., your authentication cookies).
 //!
 //! To get your authentication cookies, you'll need to do the following:
 //! - Log into WebReg.
@@ -39,13 +39,14 @@
 //! - Go to the "Network" tab of the Developer Tools. Then, either:
 //!     - Filter by the text `https://act.ucsd.edu/webreg2/svc/wradapter`
 //!     - OR, filter by `Fetch/XHR`.
-//! - Make some sort of request on WebReg (e.g. searching a course).
-//! - Look for a request made by WebReg. Under the request headers, copy the cookie.
+//! - Make some sort of request on WebReg (e.g., searching a course).
+//! - Look for a request made by WebReg.
+//!     - Under the request headers, copy the cookie.
 //!
 //! Keep in mind that your cookies will expire after either:
-//! - 10 minutes of inactivity (i.e. you do not make some request that uses your
-//!   cookies for more than 10 minutes).
-//! - *or*, when WebReg goes into maintenance mode; this occurs daily at around
+//! - 10 minutes of inactivity (i.e., you do not make some request that uses your
+//!   cookies for more than 10 minutes), or
+//! - when WebReg goes into maintenance mode; this occurs daily at around
 //!   4:15AM pacific time.
 //!
 //! Thus, you will need to find some way to keep yourself logged into WebReg 24/7
@@ -56,25 +57,26 @@
 //! To use the wrapper, you need to create a new instance of it. For example:
 //! ```rs
 //! use reqwest::Client;
-//! use webweg::webreg_wrapper::WebRegWrapper;
+//! use webweg::wrapper::WebRegWrapper;
 //!
 //! let term = "SP22";
 //! // For authentication cookies, see previous section.
 //! let cookie = "your authentication cookies here";
 //! let w = WebRegWrapper::new(Client::new(), cookie.to_string(), term);
 //! ```
+//! For your convenience, `reqwest` is automatically exported so you can use that
+//! from `webweg`.
 //!
 //! Once created, you're able to use the various wrapper functions. Some useful
 //! examples are shown below (note that `w` refers to the declaration above).
 //!
-//! The key idea is that a majority of the wrapper functions returns an
-//! `Result<T, Cow<'a, str>>`, where `T` is the result type. So, if a request
-//! is successful, you will get `T` back; if the request is unsuccessful, you
-//! will get a `Cow<'a, str>` back, which is the error string generated either
-//! by WebReg itself or by other means.
+//! Most wrapper functions will return a `Result<T, Error>`, where `T` is the
+//! result type. So, if a request is successful, you'll get `T` back. If the
+//! request is unsuccessful, you will get back an `Error`, which contains
+//! information about why the request failed.
 //!
 //! ### Check Login Status
-//! You can check to see if you are logged in (i.e. if the wrapper can actually
+//! You can check to see if you are logged in (i.e., if the wrapper can actually
 //! perform any useful requests).
 //! ```rs
 //! if !w.is_valid().await {
@@ -86,7 +88,7 @@
 //! ### Get Schedule
 //! You can get your current schedule, which lists your Enrolled, Planned, and
 //! Waitlisted courses. You are able to fetch either the default schedule (`None`)
-//! or a specific schedule (e.g. `My Schedule 2`)
+//! or a specific schedule (e.g., `My Schedule 2`)
 //!
 //! Example: Suppose you wanted to see what courses are currently in your *default*
 //! schedule. We can use the following code:
@@ -130,7 +132,7 @@
 //! code will do just that:
 //!
 //! ```rs
-//! use webweg::webreg_wrapper::SearchType;
+//! use webweg::wrapper::SearchType;
 //!
 //! let search_res = w
 //!     .search_courses_detailed(SearchType::ByMultipleSections(&[
@@ -147,7 +149,7 @@
 //! CSE course. We can use the following code:
 //!
 //! ```rs
-//! use webweg::webreg_wrapper::{CourseLevelFilter, SearchRequestBuilder};
+//! use webweg::wrapper::{CourseLevelFilter, SearchRequestBuilder};
 //!
 //! let search_res = w
 //!     .search_courses_detailed(SearchType::Advanced(
@@ -177,7 +179,7 @@
 //!     section_id: "079911",
 //!     section_code: "A01",
 //!     // Using S/U grading.
-//!     grading_option: Some("S"),
+//!     grading_option: Some(GradeOption::S),
 //!     // Put in default schedule
 //!     schedule_name: None,
 //!     unit_count: 4
@@ -207,13 +209,13 @@
 //! sections.
 //!
 //! Example: Suppose we wanted to enroll or waitlist a section of Math 184 with
-//! section ID `078616`, and then drop it afterwards. This is how we could
+//! section number `078616`, and then drop it afterwards. This is how we could
 //! do this.
 //!
 //! ```rs
 //! use std::time::Duration;
-//! use webweg::webreg_clean_defn::EnrollmentStatus;
-//! use webweg::webreg_wrapper::EnrollWaitAdd;
+//! use webweg::types::EnrollmentStatus;
+//! use webweg::wrapper::EnrollWaitAdd;
 //!
 //! let section_res = w
 //!     .search_courses_detailed(SearchType::BySection("078616"))
@@ -281,22 +283,25 @@
 //!
 //! ## Definition Files
 //! This crate comes with two definition files:
-//! - `webreg_raw_defn`
-//! - `webreg_clean_defn`
+//! - `raw_types`
+//! - `types`
 //!
 //! Most wrapper methods will make use of return types which can be found in
-//! `webreg_clean_defn`. Very rarely will you need to use `webreg_raw_defn`;
-//! the only time you will need to use `webreg_clean_defn` is if you're using
+//! `types`. Very rarely will you need to use `raw_types`;
+//! the only time you will need to use `raw_types` is if you're using
 //! the `search_courses` method.
 //!
 //! ## Tests
 //! Very basic tests can be found in the `tests` folder. You will need
 //! to provide your cookies in the `cookie.txt` file; place this file in
-//! the project root directory (i.e. the directory with the `src` and
+//! the project root directory (i.e., the directory with the `src` and
 //! `tests` directories).
 //!
 //! Due to WebReg constantly changing, making long-term tests is not
 //! feasible. Thus, I will only test major things.
+//!
+//! That being said, there are tests for all utility functions (things that
+//! can be tested in the long-term).
 //!
 //! ## Disclaimer
 //! I am not responsible for any damages or other issue(s) caused by
@@ -307,10 +312,9 @@
 //! ## License
 //! Everything in this repository is licensed under the MIT license.
 
-mod util;
-
 pub mod raw_types;
 pub mod types;
+pub mod util;
 pub mod wrapper;
 
 pub use reqwest;

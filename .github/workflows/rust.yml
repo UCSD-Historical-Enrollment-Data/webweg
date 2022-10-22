@@ -20,6 +20,8 @@ jobs:
       run: cargo build --verbose
     - name: Documentation Example Compiles
       run: cargo test --doc --verbose
+    - name: Run Utility Tests
+      run: cargo test --test wrapper_tests -- util_tests
     - name: Clippy
       run: cargo clippy
     - name: Format

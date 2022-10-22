@@ -97,3 +97,42 @@ pub fn parse_binary_days(bin_str: &str) -> Vec<String> {
 
     days
 }
+
+const TERM_ARR: [(&str, (i64, i64)); 6] = [
+    ("SP", (5200, 22)), // SP22
+    ("S1", (5210, 22)), // S122
+    ("S2", (5220, 22)), // S222
+    ("S3", (5230, 22)), // S322
+    ("FA", (5250, 22)), // FA22
+    ("WI", (5260, 23)), // WI23
+];
+
+/// Gets the term ID based on the term that was passed in.
+///
+/// # Parameters
+/// - `term`: The term
+///
+/// # Returns
+/// The term ID, if valid. If `0` is returned, then the input
+/// is invalid.
+pub fn get_term_seq_id(term: impl AsRef<str>) -> i64 {
+    let term = term.as_ref();
+    if term.len() != 4 {
+        return 0;
+    }
+
+    let term_init = &term[..2];
+    let (base_seq_id, base_year) = match TERM_ARR.iter().find(|(term, _)| *term == term_init) {
+        Some((_, data)) => *data,
+        None => return 0,
+    };
+
+    let quarter_yr = match term[2..].parse::<i64>() {
+        Ok(o) => o,
+        Err(_) => return 0,
+    };
+
+    // 70 is the difference between each term, apparently
+    // For example, the seqid of FA22 and FA23 has a difference of 70
+    70 * (quarter_yr - base_year) + base_seq_id
+}
