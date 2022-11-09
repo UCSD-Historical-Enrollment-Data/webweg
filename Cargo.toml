@@ -7,7 +7,6 @@ readme = "README.md"
 homepage = "https://github.com/ewang2002/webweg/"
 repository = "https://github.com/ewang2002/webweg/"
 license = "MIT"
-license-file = "LICENSE"
 keywords = ["ucsd", "webreg", "enrollment"]
 
 [dependencies]
