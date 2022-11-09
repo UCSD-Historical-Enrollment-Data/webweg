@@ -15,7 +15,7 @@ An asynchronous API wrapper, written in Rust, for UCSD's
 In your `Cargo.toml`, put:
 ```toml
 [dependencies]
-webweg = { git = "https://github.com/ewang2002/webweg", branch = "stable" }
+webweg = "0.6.1"
 ```
 
 ## Wrapper Features
