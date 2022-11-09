@@ -3,6 +3,12 @@ name = "webweg"
 version = "0.6.1"
 edition = "2021"
 description = "An asynchronous API wrapper for UCSD's WebReg course enrollment system."
+readme = "README.md"
+homepage = "https://github.com/ewang2002/webweg/"
+repository = "https://github.com/ewang2002/webweg/"
+license = "MIT"
+license-file = "LICENSE"
+keywords = ["ucsd", "webreg", "enrollment"]
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
