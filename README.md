@@ -8,14 +8,14 @@
   <a href="https://github.com/ewang2002/UCSDHistEnrollData">UCSDHistEnrollmentData</a>
 </p>
 
-An asynchronous API wrapper, written in Rust, for UCSD's 
+An asynchronous API wrapper, written in Rust, for [UCSD](https://ucsd.edu/)'s 
 [WebReg](https://act.ucsd.edu/webreg2/start) course enrollment system.
 
 ## Usage
 In your `Cargo.toml`, put:
 ```toml
 [dependencies]
-webweg = "0.6.1"
+webweg = "0.6.2"
 ```
 
 ## Wrapper Features
