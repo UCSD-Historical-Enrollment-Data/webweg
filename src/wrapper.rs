@@ -1205,7 +1205,7 @@ impl WebRegWrapper {
     /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
     /// let res = wrapper
     ///     .search_courses_detailed(SearchType::Advanced(
-    ///         &SearchRequestBuilder::new()
+    ///         SearchRequestBuilder::new()
     ///             .filter_courses_by(CourseLevelFilter::LowerDivision)
     ///             .filter_courses_by(CourseLevelFilter::UpperDivision)
     ///             .add_department("CSE")
@@ -2626,12 +2626,12 @@ pub struct EventAdd<'a> {
 
 /// Used to construct search requests for the `search_courses` function.
 #[derive(Clone)]
-pub struct SearchRequestBuilder<'a> {
-    subjects: Vec<&'a str>,
-    courses: Vec<&'a str>,
-    departments: Vec<&'a str>,
-    instructor: Option<&'a str>,
-    title: Option<&'a str>,
+pub struct SearchRequestBuilder {
+    subjects: Vec<String>,
+    courses: Vec<String>,
+    departments: Vec<String>,
+    instructor: Option<String>,
+    title: Option<String>,
     level_filter: u32,
     days: u32,
     start_time: Option<(u32, u32)>,
@@ -2639,7 +2639,7 @@ pub struct SearchRequestBuilder<'a> {
     only_open: bool,
 }
 
-impl<'a> SearchRequestBuilder<'a> {
+impl SearchRequestBuilder {
     /// Creates a new instance of the `SearchRequestBuilder`, which is used to search for specific
     /// courses.
     ///
@@ -2668,12 +2668,13 @@ impl<'a> SearchRequestBuilder<'a> {
     ///
     /// # Returns
     /// The `SearchRequestBuilder`
-    pub fn add_subject(mut self, subject: &'a str) -> Self {
-        if subject != subject.to_uppercase() || subject.len() > 4 {
+    pub fn add_subject(mut self, subject: impl Into<String>) -> Self {
+        let s: String = subject.into();
+        if s.len() > 4 {
             return self;
         }
 
-        self.subjects.push(subject);
+        self.subjects.push(s.to_uppercase());
         self
     }
 
@@ -2685,8 +2686,8 @@ impl<'a> SearchRequestBuilder<'a> {
     ///
     /// # Returns
     /// The `SearchRequestBuilder`
-    pub fn add_course(mut self, course: &'a str) -> Self {
-        self.courses.push(course);
+    pub fn add_course(mut self, course: impl Into<String>) -> Self {
+        self.courses.push(course.into());
         self
     }
 
@@ -2698,12 +2699,13 @@ impl<'a> SearchRequestBuilder<'a> {
     ///
     /// # Returns
     /// The `SearchRequestBuilder`
-    pub fn add_department(mut self, department: &'a str) -> Self {
-        if department != department.to_uppercase() || department.len() > 4 {
+    pub fn add_department(mut self, department: impl Into<String>) -> Self {
+        let d: String = department.into();
+        if d.len() > 4 {
             return self;
         }
 
-        self.departments.push(department);
+        self.departments.push(d.to_uppercase());
         self
     }
 
@@ -2714,8 +2716,8 @@ impl<'a> SearchRequestBuilder<'a> {
     ///
     /// # Returns
     /// The `SearchRequestBuilder`
-    pub fn set_instructor(mut self, instructor: &'a str) -> Self {
-        self.instructor = Some(instructor);
+    pub fn set_instructor(mut self, instructor: impl Into<String>) -> Self {
+        self.instructor = Some(instructor.into());
         self
     }
 
@@ -2727,8 +2729,8 @@ impl<'a> SearchRequestBuilder<'a> {
     ///
     /// # Returns
     /// The `SearchRequestBuilder`
-    pub fn set_title(mut self, title: &'a str) -> Self {
-        self.title = Some(title);
+    pub fn set_title(mut self, title: impl Into<String>) -> Self {
+        self.title = Some(title.into());
         self
     }
 
@@ -2824,7 +2826,7 @@ impl<'a> SearchRequestBuilder<'a> {
     }
 }
 
-impl<'a> Default for SearchRequestBuilder<'a> {
+impl Default for SearchRequestBuilder {
     fn default() -> Self {
         Self::new()
     }
@@ -2880,7 +2882,7 @@ pub enum SearchType<'a> {
     ByMultipleSections(&'a [&'a str]),
 
     /// Searches for a (set of) course(s) by multiple specifications.
-    Advanced(&'a SearchRequestBuilder<'a>),
+    Advanced(SearchRequestBuilder),
 }
 
 /// The possible grading options.

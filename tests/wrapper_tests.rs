@@ -8,7 +8,7 @@ use std::path::Path;
 use webweg::types::{CourseSection, Meeting};
 use webweg::wrapper::WebRegWrapper;
 
-const TERM: &str = "FA22";
+const TERM: &str = "WI23";
 
 /// Gets the wrapper for testing.
 ///
@@ -327,9 +327,7 @@ mod test_course_info {
 mod test_search {
     use std::collections::HashSet;
 
-    use webweg::wrapper::{
-        CourseLevelFilter, DayOfWeek, PlanAdd, SearchRequestBuilder, SearchType,
-    };
+    use webweg::wrapper::{CourseLevelFilter, DayOfWeek, SearchRequestBuilder, SearchType};
 
     use crate::get_wrapper;
 
@@ -387,7 +385,7 @@ mod test_search {
         let wrapper = get_wrapper();
         let adv_search = wrapper
             .search_courses_detailed(SearchType::Advanced(
-                &SearchRequestBuilder::new()
+                SearchRequestBuilder::new()
                     .add_department("CSE")
                     .filter_courses_by(CourseLevelFilter::LowerDivision)
                     .filter_courses_by(CourseLevelFilter::UpperDivision)
@@ -413,7 +411,7 @@ mod test_search {
         let wrapper = get_wrapper();
         let res = wrapper
             .search_courses(SearchType::Advanced(
-                &SearchRequestBuilder::new()
+                SearchRequestBuilder::new()
                     .filter_courses_by(CourseLevelFilter::LowerDivision)
                     .filter_courses_by(CourseLevelFilter::UpperDivision)
                     .add_department("CSE")
@@ -434,7 +432,7 @@ mod test_search {
         let wrapper = get_wrapper();
         let res = wrapper
             .search_courses(SearchType::Advanced(
-                &SearchRequestBuilder::new().set_instructor("kedlaya"),
+                SearchRequestBuilder::new().set_instructor("kedlaya"),
             ))
             .await
             .unwrap();
@@ -446,7 +444,7 @@ mod test_search {
         let wrapper = get_wrapper();
         let res = wrapper
             .search_courses(SearchType::Advanced(
-                &SearchRequestBuilder::new().set_title("politics"),
+                SearchRequestBuilder::new().set_title("politics"),
             ))
             .await
             .unwrap();
@@ -458,20 +456,14 @@ mod test_search {
     async fn test_random() {
         let wrapper = get_wrapper();
         let res = wrapper
-            .add_to_plan(
-                PlanAdd {
-                    subject_code: "MUS",
-                    course_code: "19R",
-                    section_id: "090571",
-                    section_code: "B10",
-                    grading_option: None,
-                    schedule_name: None,
-                    unit_count: 4,
-                },
-                true,
-            )
-            .await;
-        println!("{:?}", res);
+            .search_courses(SearchType::Advanced(
+                SearchRequestBuilder::new()
+                    .filter_courses_by(CourseLevelFilter::Graduate)
+                    .add_department("cse"),
+            ))
+            .await
+            .unwrap();
+        println!("{}", res.len());
     }
 }
 
@@ -629,7 +621,7 @@ mod util_tests {
 
     #[test]
     fn test_format_multiple_courses_mixed() {
-        assert_eq!("", util::format_multiple_courses([].as_slice()));
+        assert_eq!("", util::format_multiple_courses([].as_slice() as &[&str]));
         assert_eq!(
             "  8A;CSE: 12",
             util::format_multiple_courses(&["8a", "", "cse12"])

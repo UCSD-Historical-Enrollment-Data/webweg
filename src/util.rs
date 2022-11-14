@@ -230,14 +230,15 @@ where
 ///
 /// # Returns
 /// The formatted string.
-pub fn format_multiple_courses(query: &[&str]) -> String {
+pub fn format_multiple_courses<T: AsRef<str>>(query: &[T]) -> String {
     // The way the string query is formatted is
     // - each course (or part of course) is separated by ';'
     // - each whitespace within the course is replaced with ':'
     query
         .iter()
         .map(|x| {
-            x.split_whitespace()
+            x.as_ref()
+                .split_whitespace()
                 .filter(|s| !s.is_empty())
                 .collect::<Vec<_>>()
         })
