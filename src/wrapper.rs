@@ -143,9 +143,9 @@ impl WebRegWrapper {
     /// let client = Client::new();
     /// let wrapper = WebRegWrapper::new(client, "my cookies".to_string(), "FA22");
     /// ```
-    pub fn new(client: Client, cookies: String, term: impl Into<String>) -> Self {
+    pub fn new(client: Client, cookies: impl Into<String>, term: impl Into<String>) -> Self {
         Self {
-            cookies,
+            cookies: cookies.into(),
             client,
             term: term.into(),
         }
@@ -161,16 +161,16 @@ impl WebRegWrapper {
     ///
     /// # Parameters
     /// - `new_cookies`: The new cookies.
-    pub fn set_cookies(&mut self, new_cookies: String) {
-        self.cookies = new_cookies;
+    pub fn set_cookies(&mut self, new_cookies: impl Into<String>) {
+        self.cookies = new_cookies.into();
     }
 
     /// Sets the term to the new, specified term.
     ///
     /// # Parameters
     /// - `new_term`: The term to use.
-    pub fn set_term(&mut self, new_term: String) {
-        self.term = new_term;
+    pub fn set_term(&mut self, new_term: impl Into<String>) {
+        self.term = new_term.into();
     }
 
     /// Checks if the current WebReg instance is valid. Specifically, this will check if you

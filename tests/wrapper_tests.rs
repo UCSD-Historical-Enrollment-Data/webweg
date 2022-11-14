@@ -629,6 +629,11 @@ mod util_tests {
 
     #[test]
     fn test_format_multiple_courses_mixed() {
+        assert_eq!("", util::format_multiple_courses([].as_slice()));
+        assert_eq!(
+            "  8A;CSE: 12",
+            util::format_multiple_courses(&["8a", "", "cse12"])
+        );
         assert_eq!(
             "CSE:101;105;COGS: 10;  8",
             util::format_multiple_courses(&["cse 101", "105", "cogs 10", "8"])
