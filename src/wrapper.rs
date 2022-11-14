@@ -15,7 +15,6 @@ use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
-use std::time::SystemTime;
 use thiserror::Error;
 use url::Url;
 
@@ -270,7 +269,7 @@ impl WebRegWrapper {
             &[
                 ("termcode", term.as_str()),
                 ("seqid", seqid_str.as_str()),
-                ("_", self.get_epoch_time().to_string().as_str()),
+                ("_", util::get_epoch_time().to_string().as_str()),
             ],
         )?;
 
@@ -291,7 +290,7 @@ impl WebRegWrapper {
                 ("termcode", term.as_str()),
                 ("seqid", seqid_str.as_str()),
                 ("logged", "true"),
-                ("_", self.get_epoch_time().to_string().as_str()),
+                ("_", util::get_epoch_time().to_string().as_str()),
             ],
         )?;
 
@@ -370,7 +369,7 @@ impl WebRegWrapper {
                 ("subjcode", subject_code.as_ref()),
                 ("crsecode", course_code.as_ref()),
                 ("termcode", self.term.as_str()),
-                ("_", self.get_epoch_time().to_string().as_str()),
+                ("_", util::get_epoch_time().to_string().as_str()),
             ],
         )?;
 
@@ -482,7 +481,7 @@ impl WebRegWrapper {
                 ("final", ""),
                 ("sectnum", ""),
                 ("termcode", self.term.as_str()),
-                ("_", self.get_epoch_time().to_string().as_str()),
+                ("_", util::get_epoch_time().to_string().as_str()),
             ],
         )?;
 
@@ -536,10 +535,10 @@ impl WebRegWrapper {
         // be three meeting objects -- one for M, one for W, and one for F.
         for (_, sch_meetings) in base_group_secs {
             // First, let's get all instructors associated with this course section.
-            let instructors = self.get_all_instructors(
+            let instructors = util::get_all_instructors(
                 sch_meetings
                     .iter()
-                    .flat_map(|x| self.get_instructor_names(&x.person_full_name)),
+                    .flat_map(|x| util::get_instructor_names(&x.person_full_name)),
             );
 
             // Here, we want to find the main meetings. We note that the main meetings are the
@@ -577,7 +576,7 @@ impl WebRegWrapper {
                     end_hr: main.end_time_hr,
                     building: main.bldg_code.trim().to_string(),
                     room: main.room_code.trim().to_string(),
-                    instructors: self.get_instructor_names(&main.person_full_name),
+                    instructors: util::get_instructor_names(&main.person_full_name),
                 });
             }
 
@@ -598,7 +597,7 @@ impl WebRegWrapper {
                     end_hr: x.end_time_hr,
                     building: x.bldg_code.trim().to_string(),
                     room: x.room_code.trim().to_string(),
-                    instructors: self.get_instructor_names(&x.person_full_name),
+                    instructors: util::get_instructor_names(&x.person_full_name),
                 })
                 .for_each(|meeting| all_meetings.push(meeting));
 
@@ -615,7 +614,7 @@ impl WebRegWrapper {
                     end_hr: x.end_time_hr,
                     building: x.bldg_code.trim().to_string(),
                     room: x.room_code.trim().to_string(),
-                    instructors: self.get_instructor_names(&x.person_full_name),
+                    instructors: util::get_instructor_names(&x.person_full_name),
                 })
                 .for_each(|meeting| all_meetings.push(meeting));
 
@@ -690,10 +689,10 @@ impl WebRegWrapper {
 
             schedule.push(ScheduledSection {
                 section_id: sch_meetings[0].section_id.to_string(),
-                all_instructors: self.get_all_instructors(
+                all_instructors: util::get_all_instructors(
                     sch_meetings
                         .iter()
-                        .flat_map(|x| self.get_instructor_names(&x.person_full_name)),
+                        .flat_map(|x| util::get_instructor_names(&x.person_full_name)),
                 ),
                 subject_code: sch_meetings[0].subj_code.trim().to_string(),
                 course_code: sch_meetings[0].course_code.trim().to_string(),
@@ -720,7 +719,7 @@ impl WebRegWrapper {
                     end_hr: sch_meetings[0].start_time_hr,
                     building: sch_meetings[0].bldg_code.trim().to_string(),
                     room: sch_meetings[0].room_code.trim().to_string(),
-                    instructors: self.get_instructor_names(&sch_meetings[0].person_full_name),
+                    instructors: util::get_instructor_names(&sch_meetings[0].person_full_name),
                 }],
             });
         }
@@ -742,7 +741,7 @@ impl WebRegWrapper {
     /// # Parameters
     /// - `subject_code`: The subject code. For example, if you wanted to check `MATH 100B`, you
     /// would put `MATH`.
-    /// - `course_code`: The course code. For example, if you wanted to check `MATH 100B`, you
+    /// - `course_num`: The course number. For example, if you wanted to check `MATH 100B`, you
     /// would put `100B`.
     ///
     /// # Returns
@@ -769,16 +768,16 @@ impl WebRegWrapper {
     pub async fn get_enrollment_count(
         &self,
         subject_code: impl AsRef<str>,
-        course_code: impl AsRef<str>,
+        course_num: impl AsRef<str>,
     ) -> self::Result<Vec<CourseSection>> {
-        let crsc_code = self.get_formatted_course_code(course_code.as_ref());
+        let crsc_code = util::get_formatted_course_num(course_num.as_ref());
         let url = Url::parse_with_params(
             COURSE_DATA,
             &[
                 ("subjcode", subject_code.as_ref()),
                 ("crsecode", crsc_code.as_ref()),
                 ("termcode", self.term.as_str()),
-                ("_", self.get_epoch_time().to_string().as_ref()),
+                ("_", util::get_epoch_time().to_string().as_ref()),
             ],
         )?;
 
@@ -823,12 +822,12 @@ impl WebRegWrapper {
                 subj_course_id: format!(
                     "{} {}",
                     subject_code.as_ref().trim(),
-                    course_code.as_ref().trim()
+                    course_num.as_ref().trim()
                 )
                 .to_uppercase(),
                 section_id: x.section_id.trim().to_string(),
                 section_code: x.sect_code.trim().to_string(),
-                all_instructors: self.get_instructor_names(&x.person_full_name),
+                all_instructors: util::get_instructor_names(&x.person_full_name),
                 available_seats: max(x.avail_seat, 0),
                 enrolled_ct: x.enrolled_count,
                 total_seats: x.section_capacity,
@@ -849,7 +848,7 @@ impl WebRegWrapper {
     /// # Parameters
     /// - `subject_code`: The subject code. For example, if you wanted to check `MATH 100B`, you
     /// would put `MATH`.
-    /// - `course_code`: The course code. For example, if you wanted to check `MATH 100B`, you
+    /// - `course_num`: The course number. For example, if you wanted to check `MATH 100B`, you
     /// would put `100B`.
     ///
     /// # Returns
@@ -877,16 +876,16 @@ impl WebRegWrapper {
     pub async fn get_course_info(
         &self,
         subject_code: impl AsRef<str>,
-        course_code: impl AsRef<str>,
+        course_num: impl AsRef<str>,
     ) -> self::Result<Vec<CourseSection>> {
-        let crsc_code = self.get_formatted_course_code(course_code.as_ref());
+        let crsc_code = util::get_formatted_course_num(course_num.as_ref());
         let url = Url::parse_with_params(
             COURSE_DATA,
             &[
                 ("subjcode", subject_code.as_ref()),
                 ("crsecode", crsc_code.as_ref()),
                 ("termcode", self.term.as_str()),
-                ("_", self.get_epoch_time().to_string().as_ref()),
+                ("_", util::get_epoch_time().to_string().as_ref()),
             ],
         )?;
 
@@ -904,7 +903,7 @@ impl WebRegWrapper {
         let course_dept_id = format!(
             "{} {}",
             subject_code.as_ref().trim(),
-            course_code.as_ref().trim()
+            course_num.as_ref().trim()
         )
         .to_uppercase();
 
@@ -931,7 +930,7 @@ impl WebRegWrapper {
                     subj_course_id: course_dept_id.clone(),
                     section_id: meeting.section_id.trim().to_string(),
                     section_code: meeting.sect_code.trim().to_string(),
-                    all_instructors: self.get_instructor_names(&meeting.person_full_name),
+                    all_instructors: util::get_instructor_names(&meeting.person_full_name),
                     // Because it turns out that you can have negative available seats.
                     available_seats: max(meeting.avail_seat, 0),
                     enrolled_ct: meeting.enrolled_count,
@@ -947,7 +946,7 @@ impl WebRegWrapper {
                         meeting_days: m_days,
                         building: meeting.bldg_code.trim().to_string(),
                         room: meeting.room_code.trim().to_string(),
-                        instructors: self.get_instructor_names(&meeting.person_full_name),
+                        instructors: util::get_instructor_names(&meeting.person_full_name),
                     }],
                 });
 
@@ -1035,11 +1034,11 @@ impl WebRegWrapper {
             // First, get the base instructors. These are all of the instructors for the lectures.
             // Note that, for a majority of courses, there will only be one instructor. However,
             // some courses may have two or more instructors.
-            let base_instructors = self.get_all_instructors(
+            let base_instructors = util::get_all_instructors(
                 entry
                     .general_meetings
                     .iter()
-                    .flat_map(|x| self.get_instructor_names(&x.person_full_name)),
+                    .flat_map(|x| util::get_instructor_names(&x.person_full_name)),
             );
 
             // Define a closure that takes in a slice `from` (which is a slice of all meetings that
@@ -1061,7 +1060,7 @@ impl WebRegWrapper {
                         // These are instructors specifically assigned to this meeting. For most
                         // cases, these will be the same instructors assigned to the lecture
                         // meetings.
-                        instructors: self.get_instructor_names(&meeting.person_full_name),
+                        instructors: util::get_instructor_names(&meeting.person_full_name),
                     });
                 }
             };
@@ -1079,8 +1078,9 @@ impl WebRegWrapper {
                     subj_course_id: course_dept_id.clone(),
                     section_id: entry.general_meetings[0].section_id.clone(),
                     section_code: entry.general_meetings[0].sect_code.clone(),
-                    all_instructors: self
-                        .get_instructor_names(&entry.general_meetings[0].person_full_name),
+                    all_instructors: util::get_instructor_names(
+                        &entry.general_meetings[0].person_full_name,
+                    ),
                     available_seats: max(entry.general_meetings[0].avail_seat, 0),
                     enrolled_ct: entry.general_meetings[0].enrolled_count,
                     total_seats: entry.general_meetings[0].section_capacity,
@@ -1100,7 +1100,7 @@ impl WebRegWrapper {
             // we clone 'section' for each child meeting.
             for c_meeting in &entry.child_meetings {
                 let mut instructors = base_instructors.clone();
-                instructors.append(&mut self.get_instructor_names(&c_meeting.person_full_name));
+                instructors.append(&mut util::get_instructor_names(&c_meeting.person_full_name));
                 instructors.sort();
                 instructors.dedup();
 
@@ -1315,32 +1315,20 @@ impl WebRegWrapper {
                 let subject_code = if request_filter.subjects.is_empty() {
                     "".to_string()
                 } else {
+                    // Subjects are separated by ':'
                     request_filter.subjects.join(":")
                 };
 
                 let course_code = if request_filter.courses.is_empty() {
                     "".to_string()
                 } else {
-                    // This can probably be made significantly more efficient
-                    request_filter
-                        .courses
-                        .iter()
-                        .map(|x| x.split_whitespace().collect::<Vec<_>>())
-                        .map(|course| {
-                            course
-                                .into_iter()
-                                .map(|x| self.get_formatted_course_code(x))
-                                .collect::<Vec<_>>()
-                                .join(":")
-                        })
-                        .collect::<Vec<_>>()
-                        .join(";")
-                        .to_uppercase()
+                    util::format_multiple_courses(&request_filter.courses)
                 };
 
                 let department = if request_filter.departments.is_empty() {
                     "".to_string()
                 } else {
+                    // Departments are separated by ':'
                     request_filter.departments.join(":")
                 };
 
@@ -1418,7 +1406,7 @@ impl WebRegWrapper {
                         ("isbasic", "true"),
                         ("basicsearchvalue", ""),
                         ("termcode", self.term.as_str()),
-                        ("_", self.get_epoch_time().to_string().as_str()),
+                        ("_", util::get_epoch_time().to_string().as_str()),
                     ],
                 )?
             }
@@ -1630,7 +1618,7 @@ impl WebRegWrapper {
     /// # }
     /// ```
     pub async fn validate_add_to_plan(&self, plan_options: &PlanAdd<'_>) -> self::Result<bool> {
-        let crsc_code = self.get_formatted_course_code(plan_options.course_code);
+        let crsc_code = util::get_formatted_course_num(plan_options.course_code);
         self.process_post_response(
             self.client
                 .post(PLAN_EDIT)
@@ -1700,7 +1688,7 @@ impl WebRegWrapper {
         validate: bool,
     ) -> self::Result<bool> {
         let u = plan_options.unit_count.to_string();
-        let crsc_code = self.get_formatted_course_code(plan_options.course_code);
+        let crsc_code = util::get_formatted_course_num(plan_options.course_code);
 
         if validate {
             // We need to call the edit endpoint first, or else we'll have issues where we don't
@@ -2056,7 +2044,7 @@ impl WebRegWrapper {
     pub async fn ping_server(&self) -> bool {
         let res = self
             .client
-            .get(format!("{}?_={}", PING_SERVER, self.get_epoch_time()))
+            .get(format!("{}?_={}", PING_SERVER, util::get_epoch_time()))
             .header(COOKIE, &self.cookies)
             .header(USER_AGENT, MY_USER_AGENT)
             .send()
@@ -2543,86 +2531,6 @@ impl WebRegWrapper {
     #[inline(always)]
     fn internal_is_valid(&self, s: &str) -> bool {
         !s.contains("Skip to main content")
-    }
-
-    /// Gets the current epoch time.
-    ///
-    /// # Returns
-    /// The current time.
-    #[inline(always)]
-    fn get_epoch_time(&self) -> u128 {
-        SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_millis()
-    }
-
-    /// Gets the formatted course code so that it can be recognized by WebReg's internal API.
-    ///
-    /// # Parameters
-    /// - `course_code`: The course code, e.g. if you have the course `CSE 110`, you would put
-    /// `110`.
-    ///
-    /// # Returns
-    /// The formatted course code for WebReg.
-    #[inline(always)]
-    fn get_formatted_course_code(&self, course_code: &str) -> String {
-        // If the course code only has 1 digit (excluding any letters), then we need to prepend 2
-        // spaces to the course code.
-        //
-        // If the course code has 2 digits (excluding any letters), then we need to prepend 1
-        // space to the course code.
-        //
-        // Otherwise, don't need to prepend any spaces to the course code.
-        //
-        // For now, assume that no digits will ever appear *after* the letters. Weird thing is that
-        // WebReg uses '+' to offset the course code but spaces are accepted.
-        match course_code.chars().filter(|x| x.is_ascii_digit()).count() {
-            1 => format!("  {}", course_code),
-            2 => format!(" {}", course_code),
-            _ => course_code.to_string(),
-        }
-    }
-
-    /// Gets the instructor's names.
-    ///
-    /// # Parameters
-    /// - `instructor_name`: The raw name.
-    ///
-    /// # Returns
-    /// The parsed instructor's names, as a vector.
-    #[inline(always)]
-    fn get_instructor_names(&self, instructor_name: &str) -> Vec<String> {
-        // The instructor string is in the form
-        // name1    ;pid1:name2      ;pid2:...:nameN      ;pidN
-        instructor_name
-            .split(':')
-            .map(|x| {
-                if x.contains(';') {
-                    x.split_once(';').unwrap().0.trim().to_string()
-                } else {
-                    x.trim().to_string()
-                }
-            })
-            .collect()
-    }
-
-    /// Removes duplicate names from the list of instructors that are given.
-    ///
-    /// # Parameters
-    /// - `instructors`: An iterator of instructors, potentially with duplicates.
-    ///
-    /// # Returns
-    /// A vector of instructors, with no duplicates.
-    #[inline(always)]
-    fn get_all_instructors<I>(&self, instructors: I) -> Vec<String>
-    where
-        I: Iterator<Item = String>,
-    {
-        let mut all_inst = instructors.collect::<Vec<_>>();
-        all_inst.sort();
-        all_inst.dedup();
-        all_inst
     }
 }
 

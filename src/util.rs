@@ -1,3 +1,5 @@
+use std::time::SystemTime;
+
 use crate::raw_types::RawWebRegMeeting;
 use crate::types::MeetingDay;
 
@@ -135,4 +137,147 @@ pub fn get_term_seq_id(term: impl AsRef<str>) -> i64 {
     // 70 is the difference between each term, apparently
     // For example, the seqid of FA22 and FA23 has a difference of 70
     70 * (quarter_yr - base_year) + base_seq_id
+}
+
+/// Gets the formatted course code so that it can be recognized by
+/// WebReg's internal API.
+///
+/// # Parameters
+/// - `course_code`: The course code, e.g. if you have the course
+/// `CSE 110`, you would put `110`.
+///
+/// # Returns
+/// The formatted course code for WebReg.
+#[inline(always)]
+pub fn get_formatted_course_num(course_code: &str) -> String {
+    // If the course code only has 1 digit (excluding any letters), then we need to prepend 2
+    // spaces to the course code.
+    //
+    // If the course code has 2 digits (excluding any letters), then we need to prepend 1
+    // space to the course code.
+    //
+    // Otherwise, don't need to prepend any spaces to the course code.
+    //
+    // For now, assume that no digits will ever appear *after* the letters. Weird thing is that
+    // WebReg uses '+' to offset the course code but spaces are accepted.
+    match course_code.chars().filter(|x| x.is_ascii_digit()).count() {
+        1 => format!("  {}", course_code),
+        2 => format!(" {}", course_code),
+        _ => course_code.to_string(),
+    }
+}
+
+/// Gets the current epoch time.
+///
+/// # Returns
+/// The current time.
+#[inline(always)]
+pub(crate) fn get_epoch_time() -> u128 {
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_millis()
+}
+
+/// Gets the instructor's names.
+///
+/// # Parameters
+/// - `instructor_name`: The raw name.
+///
+/// # Returns
+/// The parsed instructor's names, as a vector.
+#[inline(always)]
+pub(crate) fn get_instructor_names(instructor_name: &str) -> Vec<String> {
+    // The instructor string is in the form
+    // name1    ;pid1:name2      ;pid2:...:nameN      ;pidN
+    instructor_name
+        .split(':')
+        .map(|x| {
+            if x.contains(';') {
+                x.split_once(';').unwrap().0.trim().to_string()
+            } else {
+                x.trim().to_string()
+            }
+        })
+        .collect()
+}
+
+/// Removes duplicate names from the list of instructors that are given.
+///
+/// # Parameters
+/// - `instructors`: An iterator of instructors, potentially with duplicates.
+///
+/// # Returns
+/// A vector of instructors, with no duplicates.
+#[inline(always)]
+pub(crate) fn get_all_instructors<I>(instructors: I) -> Vec<String>
+where
+    I: Iterator<Item = String>,
+{
+    let mut all_inst = instructors.collect::<Vec<_>>();
+    all_inst.sort();
+    all_inst.dedup();
+    all_inst
+}
+
+/// Formats multiple course inputs into a string that WebReg can recognize
+/// for its search queries.
+///
+/// # Parameters
+/// - `query`: The vector of courses to format. This can either be a full
+/// course code (e.g., `CSE 100`) or a partial course code (e.g., `CSE` or
+/// `100`).
+///
+/// # Returns
+/// The formatted string.
+pub fn format_multiple_courses(query: &[&str]) -> String {
+    // The way the string query is formatted is
+    // - each course (or part of course) is separated by ';'
+    // - each whitespace within the course is replaced with ':'
+    query
+        .iter()
+        .map(|x| {
+            x.split_whitespace()
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>()
+        })
+        .filter(|x| !x.is_empty())
+        // Essentially, for each course...
+        .map(|course| {
+            // For each course vector, let's see what we should do.
+            // There are several cases to consider for each item; an item can either be one of:
+            // 1. SubjCode
+            // 2. Subj
+            // 3. Code
+            // 4. Subj, Code
+            //
+            // For now, we'll go through each individual item in the vector and
+            // process it
+            course
+                .iter()
+                .map(|item| {
+                    match item.chars().next() {
+                        // Case 3
+                        Some(c) if c.is_ascii_digit() => get_formatted_course_num(item),
+                        // Case 1 or 2
+                        Some(_) => {
+                            // See if case 1 is what we're working with
+                            if let Some(idx) = item.find(|c: char| c.is_ascii_digit()) {
+                                let subj = &item[..idx];
+                                let csrc = &item[idx..];
+                                format!("{}:{}", subj, get_formatted_course_num(csrc))
+                            } else {
+                                item.to_string()
+                            }
+                        }
+                        // This should never hit
+                        _ => "".to_string(),
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(":")
+        })
+        .collect::<Vec<_>>()
+        .join(";")
+        .to_uppercase()
 }
