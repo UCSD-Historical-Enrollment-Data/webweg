@@ -8,7 +8,7 @@ use std::path::Path;
 use webweg::types::{CourseSection, Meeting};
 use webweg::wrapper::WebRegWrapper;
 
-const TERM: &str = "FA22";
+const TERM: &str = "WI23";
 
 /// Gets the wrapper for testing.
 ///
@@ -327,9 +327,7 @@ mod test_course_info {
 mod test_search {
     use std::collections::HashSet;
 
-    use webweg::wrapper::{
-        CourseLevelFilter, DayOfWeek, PlanAdd, SearchRequestBuilder, SearchType,
-    };
+    use webweg::wrapper::{CourseLevelFilter, DayOfWeek, SearchRequestBuilder, SearchType};
 
     use crate::get_wrapper;
 
@@ -387,7 +385,7 @@ mod test_search {
         let wrapper = get_wrapper();
         let adv_search = wrapper
             .search_courses_detailed(SearchType::Advanced(
-                &SearchRequestBuilder::new()
+                SearchRequestBuilder::new()
                     .add_department("CSE")
                     .filter_courses_by(CourseLevelFilter::LowerDivision)
                     .filter_courses_by(CourseLevelFilter::UpperDivision)
@@ -413,7 +411,7 @@ mod test_search {
         let wrapper = get_wrapper();
         let res = wrapper
             .search_courses(SearchType::Advanced(
-                &SearchRequestBuilder::new()
+                SearchRequestBuilder::new()
                     .filter_courses_by(CourseLevelFilter::LowerDivision)
                     .filter_courses_by(CourseLevelFilter::UpperDivision)
                     .add_department("CSE")
@@ -434,7 +432,7 @@ mod test_search {
         let wrapper = get_wrapper();
         let res = wrapper
             .search_courses(SearchType::Advanced(
-                &SearchRequestBuilder::new().set_instructor("kedlaya"),
+                SearchRequestBuilder::new().set_instructor("kedlaya"),
             ))
             .await
             .unwrap();
@@ -446,7 +444,7 @@ mod test_search {
         let wrapper = get_wrapper();
         let res = wrapper
             .search_courses(SearchType::Advanced(
-                &SearchRequestBuilder::new().set_title("politics"),
+                SearchRequestBuilder::new().set_title("politics"),
             ))
             .await
             .unwrap();
@@ -458,55 +456,52 @@ mod test_search {
     async fn test_random() {
         let wrapper = get_wrapper();
         let res = wrapper
-            .add_to_plan(
-                PlanAdd {
-                    subject_code: "MUS",
-                    course_code: "19R",
-                    section_id: "090571",
-                    section_code: "B10",
-                    grading_option: None,
-                    schedule_name: None,
-                    unit_count: 4,
-                },
-                true,
-            )
-            .await;
-        println!("{:?}", res);
+            .search_courses(SearchType::Advanced(
+                SearchRequestBuilder::new()
+                    .filter_courses_by(CourseLevelFilter::Graduate)
+                    .add_department("cse"),
+            ))
+            .await
+            .unwrap();
+        println!("{}", res.len());
     }
 }
 
 #[cfg(test)]
 mod util_tests {
-    use webweg::util::{get_term_seq_id, parse_binary_days, parse_day_code};
+    use webweg::util;
 
     #[test]
     fn test_parse_day_code_simple() {
-        assert_eq!(["Su", "M", "W"].as_slice(), &parse_day_code("013"));
+        assert_eq!(["Su", "M", "W"].as_slice(), &util::parse_day_code("013"));
     }
 
     #[test]
     fn test_parse_day_code_all() {
         assert_eq!(
             ["Su", "M", "Tu", "W", "Th", "F", "Sa"].as_slice(),
-            &parse_day_code("0123456")
+            &util::parse_day_code("0123456")
         );
     }
 
     #[test]
     fn test_parse_day_code_none() {
-        assert!(parse_day_code("").is_empty());
+        assert!(util::parse_day_code("").is_empty());
     }
 
     #[test]
     fn test_parse_day_code_out_bounds() {
-        assert_eq!(["Su", "F", "M", "Tu"].as_slice(), &parse_day_code("051928"));
+        assert_eq!(
+            ["Su", "F", "M", "Tu"].as_slice(),
+            &util::parse_day_code("051928")
+        );
     }
 
     #[test]
     fn test_parse_binary_days_simple() {
         assert_eq!(
             ["M", "W", "F", "Su"].as_slice(),
-            &parse_binary_days("1010101")
+            &util::parse_binary_days("1010101")
         );
     }
 
@@ -514,43 +509,130 @@ mod util_tests {
     fn test_parse_binary_days_all() {
         assert_eq!(
             ["M", "Tu", "W", "Th", "F", "Sa", "Su"].as_slice(),
-            &parse_binary_days("1111111")
+            &util::parse_binary_days("1111111")
         );
     }
 
     #[test]
     fn test_parse_binary_days_none() {
-        assert!(parse_binary_days("0000000").is_empty());
+        assert!(util::parse_binary_days("0000000").is_empty());
     }
 
     #[test]
     fn test_term_seq_id_base() {
-        assert_eq!(5200, get_term_seq_id("SP22"));
-        assert_eq!(5210, get_term_seq_id("S122"));
-        assert_eq!(5220, get_term_seq_id("S222"));
-        assert_eq!(5230, get_term_seq_id("S322"));
-        assert_eq!(5250, get_term_seq_id("FA22"));
-        assert_eq!(5260, get_term_seq_id("WI23"));
+        assert_eq!(5200, util::get_term_seq_id("SP22"));
+        assert_eq!(5210, util::get_term_seq_id("S122"));
+        assert_eq!(5220, util::get_term_seq_id("S222"));
+        assert_eq!(5230, util::get_term_seq_id("S322"));
+        assert_eq!(5250, util::get_term_seq_id("FA22"));
+        assert_eq!(5260, util::get_term_seq_id("WI23"));
     }
 
     #[test]
     fn test_term_seq_id_one_year() {
-        assert_eq!(5340, get_term_seq_id("SP24"));
-        assert_eq!(5330, get_term_seq_id("WI24"));
-        assert_eq!(5320, get_term_seq_id("FA23"));
-        assert_eq!(5300, get_term_seq_id("S323"));
-        assert_eq!(5290, get_term_seq_id("S223"));
-        assert_eq!(5280, get_term_seq_id("S123"));
-        assert_eq!(5270, get_term_seq_id("SP23"));
+        assert_eq!(5270, util::get_term_seq_id("SP23"));
+        assert_eq!(5340, util::get_term_seq_id("SP24"));
+        assert_eq!(5330, util::get_term_seq_id("WI24"));
+        assert_eq!(5320, util::get_term_seq_id("FA23"));
+        assert_eq!(5300, util::get_term_seq_id("S323"));
+        assert_eq!(5290, util::get_term_seq_id("S223"));
+        assert_eq!(5280, util::get_term_seq_id("S123"));
         // Try using an older term, too
-        assert_eq!(5190, get_term_seq_id("WI22"));
+        assert_eq!(5190, util::get_term_seq_id("WI22"));
     }
 
     #[test]
     fn test_term_seq_id_invalid() {
         // Invalid term
-        assert_eq!(0, get_term_seq_id("XX24"));
+        assert_eq!(0, util::get_term_seq_id("XX24"));
         // Invalid year
-        assert_eq!(0, get_term_seq_id("WI2T"));
+        assert_eq!(0, util::get_term_seq_id("WI2T"));
+    }
+
+    #[test]
+    fn test_format_course_code() {
+        assert_eq!("  8B", util::get_formatted_course_num("8B"));
+        assert_eq!("  1", util::get_formatted_course_num("1"));
+        assert_eq!(" 15L", util::get_formatted_course_num("15L"));
+        assert_eq!(" 12", util::get_formatted_course_num("12"));
+        assert_eq!("158R", util::get_formatted_course_num("158R"));
+        assert_eq!("101", util::get_formatted_course_num("101"));
+        assert_eq!("MATH", util::get_formatted_course_num("MATH"));
+    }
+
+    #[test]
+    fn test_format_multiple_courses_full() {
+        assert_eq!(
+            "CSE:  8B;CSE: 95;MATH:100A",
+            util::format_multiple_courses(&["CSE 8B", "CSE 95", "MATH 100A"])
+        );
+        assert_eq!(
+            "CSE:101;MATH:170A;MATH: 20D;MATH:187A;CSE: 11;POLI:102D;POLI:112A;COGS:  9",
+            util::format_multiple_courses(&[
+                "CSE 101",
+                "MATH 170A",
+                "math 20d",
+                "MATH 187A",
+                "cse 11",
+                "POLI 102D",
+                "poli 112a",
+                "cogs 9"
+            ])
+        );
+        assert_eq!(
+            "CSE:101;MATH: 20D;MATH:187A;CSE: 11;POLI:102D;POLI:112A;COGS:  9",
+            util::format_multiple_courses(&[
+                "CSE 101",
+                "math20d",
+                "MATH187A",
+                "cse 11",
+                "POLI102D",
+                "poli 112a",
+                "cogs9"
+            ])
+        )
+    }
+
+    #[test]
+    fn test_format_multiple_courses_subj() {
+        assert_eq!(
+            "CSE;CSE;MATH",
+            util::format_multiple_courses(&["CSE", "CSE", "MATH"])
+        );
+        assert_eq!(
+            "COGS;CSE;MATH;POLI;HIST",
+            util::format_multiple_courses(&["cogs", "CSE", "Math", "Poli", "hist"])
+        );
+    }
+
+    #[test]
+    fn test_format_multiple_courses_num() {
+        assert_eq!(
+            "105;101; 30;108;  8A;  5",
+            util::format_multiple_courses(&["105", "101", "30", "108", "8A", "5"])
+        );
+        assert_eq!(
+            " 95;  1;  8B;190A;101; 15L;105;171; 30",
+            util::format_multiple_courses(&[
+                "95", "1", "8B", "190A", "101", "15L", "105", "171", "30"
+            ])
+        );
+    }
+
+    #[test]
+    fn test_format_multiple_courses_mixed() {
+        assert_eq!("", util::format_multiple_courses([].as_slice() as &[&str]));
+        assert_eq!(
+            "  8A;CSE: 12",
+            util::format_multiple_courses(&["8a", "", "cse12"])
+        );
+        assert_eq!(
+            "CSE:101;105;COGS: 10;  8",
+            util::format_multiple_courses(&["cse 101", "105", "cogs 10", "8"])
+        );
+        assert_eq!(
+            "MATH: 20;CSE: 95;COGS:100;MATH: 10",
+            util::format_multiple_courses(&["math 20", "cse95", "cogs100", "math10"])
+        )
     }
 }

@@ -8,14 +8,14 @@
   <a href="https://github.com/ewang2002/UCSDHistEnrollData">UCSDHistEnrollmentData</a>
 </p>
 
-An asynchronous API wrapper, written in Rust, for UCSD's 
+An asynchronous API wrapper, written in Rust, for [UCSD](https://ucsd.edu/)'s 
 [WebReg](https://act.ucsd.edu/webreg2/start) course enrollment system.
 
 ## Usage
 In your `Cargo.toml`, put:
 ```toml
 [dependencies]
-webweg = { git = "https://github.com/ewang2002/webweg", branch = "stable" }
+webweg = "0.7.0"
 ```
 
 ## Wrapper Features
@@ -37,6 +37,11 @@ You're also able to do things like:
 
 
 ## Authentication
+
+<details>
+<summary>Click Here</summary>
+<br>
+
 The way to provide authorization for this wrapper is to provide cookies from an
 active WebReg session (i.e., your authentication cookies).
 
@@ -61,8 +66,15 @@ Keep in mind that your cookies will expire after either:
 Thus, you will need to find some way to keep yourself logged into WebReg 24/7
 if you want to perform continuous requests.
 
+</details>
+
 
 ## Walkthrough
+
+<details>
+<summary>Click Here</summary>
+<br>
+
 To use the wrapper, you need to create a new instance of it. For example:
 ```rs
 use reqwest::Client;
@@ -162,7 +174,7 @@ use webweg::wrapper::{CourseLevelFilter, SearchRequestBuilder};
 
 let search_res = w
     .search_courses_detailed(SearchType::Advanced(
-        &SearchRequestBuilder::new()
+        SearchRequestBuilder::new()
             .add_department("CSE")
             .filter_courses_by(CourseLevelFilter::UpperDivision)
             .filter_courses_by(CourseLevelFilter::LowerDivision),
@@ -290,6 +302,8 @@ match rem_res {
 };
 ```
 
+</details>
+
 ## Definition Files
 This crate comes with two definition files:
 - `raw_types`
@@ -311,6 +325,15 @@ feasible. Thus, I will only test major things.
 
 That being said, there are tests for all utility functions (things that
 can be tested in the long-term).
+
+## Versioning
+This crate uses a versioning scheme that is roughly based on [Semantic Versioning](https://semver.org/). For a version
+```
+MAJOR.MINOR.PATCH
+```
+- the `MAJOR` version will be incremented when a very significant feature is added, _or_ **many** non-backwards compatible changes are added, _or_ a (one or more) **significant** non-backwards compatible change is added
+- the `MINOR` version will be incremented when a minor feature is added, _or_ **few** (if any) minor non-backwards compatible changes are added.
+- the `PATCH` version will be incremented when a minor enhancement is added or a bug is fixed.
 
 ## Disclaimer
 I am not responsible for any damages or other issue(s) caused by 
