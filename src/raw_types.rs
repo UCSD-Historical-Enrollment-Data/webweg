@@ -371,3 +371,33 @@ pub struct RawEvent {
     #[serde(rename = "TIME_STAMP")]
     pub time_stamp: String,
 }
+
+// For those interested, a department and a subject are NOT the
+// same things, despite having many similar elements.
+//
+// The best way to think about it is: a department can have
+// multiple *subjects*.
+
+#[derive(Serialize, Deserialize)]
+pub struct RawSubjectElement {
+    /// The subject description. For example,
+    /// `Mathematics`.
+    #[serde(rename = "LONG_DESC")]
+    pub long_desc: String,
+
+    /// The subject code. For example, `MATH`.
+    #[serde(rename = "SUBJECT_CODE")]
+    pub subject_code: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct RawDepartmentElement {
+    /// The department code. For example, `MATH`.
+    #[serde(rename = "DEP_CODE")]
+    pub dep_code: String,
+
+    /// The department description. For example,
+    /// `Mathematics`.
+    #[serde(rename = "DEP_DESC")]
+    pub dep_desc: String,
+}

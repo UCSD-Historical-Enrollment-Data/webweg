@@ -1,8 +1,8 @@
 #![allow(unused_qualifications)]
 
 use crate::raw_types::{
-    RawCoursePrerequisite, RawEvent, RawPrerequisite, RawScheduledMeeting, RawWebRegMeeting,
-    RawWebRegSearchResultItem,
+    RawCoursePrerequisite, RawDepartmentElement, RawEvent, RawPrerequisite, RawScheduledMeeting,
+    RawSubjectElement, RawWebRegMeeting, RawWebRegSearchResultItem,
 };
 use crate::types::{
     CoursePrerequisite, CourseSection, EnrollmentStatus, Event, Meeting, MeetingDay,
@@ -64,6 +64,9 @@ const EVENT_GET: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/event
 
 const STATUS_START: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/get-status-start?";
 const ELIGIBILITY: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/check-eligibility?";
+
+const SUBJ_LIST: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/search-load-subject?";
+const DEPT_LIST: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/search-load-department?";
 
 const VERIFY_FAIL_ERR: &str = "[{\"VERIFY\":\"FAIL\"}]";
 
@@ -1281,6 +1284,58 @@ impl WebRegWrapper {
         }
 
         Ok(vec)
+    }
+
+    /// Gets a list of all departments that are offering courses for this term.
+    ///
+    /// # Returns
+    /// A vector of department codes.
+    pub async fn get_all_department_codes(&self) -> self::Result<Vec<String>> {
+        Ok(self
+            .process_get_result::<Vec<RawDepartmentElement>>(
+                self.client
+                    .get(Url::parse_with_params(
+                        DEPT_LIST,
+                        &[
+                            ("termcode", self.term.as_str()),
+                            ("_", util::get_epoch_time().to_string().as_str()),
+                        ],
+                    )?)
+                    .header(COOKIE, &self.cookies)
+                    .header(USER_AGENT, MY_USER_AGENT)
+                    .send()
+                    .await,
+            )
+            .await?
+            .into_iter()
+            .map(|x| x.dep_code.trim().to_string())
+            .collect::<Vec<_>>())
+    }
+
+    /// Gets a list of all subjects that have at least one course offered for this term.
+    ///
+    /// # Returns
+    /// A vector of subject codes.
+    pub async fn get_all_subject_codes(&self) -> self::Result<Vec<String>> {
+        Ok(self
+            .process_get_result::<Vec<RawSubjectElement>>(
+                self.client
+                    .get(Url::parse_with_params(
+                        SUBJ_LIST,
+                        &[
+                            ("termcode", self.term.as_str()),
+                            ("_", util::get_epoch_time().to_string().as_str()),
+                        ],
+                    )?)
+                    .header(COOKIE, &self.cookies)
+                    .header(USER_AGENT, MY_USER_AGENT)
+                    .send()
+                    .await,
+            )
+            .await?
+            .into_iter()
+            .map(|x| x.subject_code.trim().to_string())
+            .collect::<Vec<_>>())
     }
 
     /// Gets all courses that are available. All this does is searches for all courses via Webreg's

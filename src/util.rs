@@ -224,9 +224,9 @@ where
 /// for its search queries.
 ///
 /// # Parameters
-/// - `query`: The vector of courses to format. This can either be a full
-/// course code (e.g., `CSE 100`) or a partial course code (e.g., `CSE` or
-/// `100`).
+/// - `query`: The vector of courses to format. Each element can either be a
+/// full course code (e.g., `CSE 100`) or a partial course code (e.g., `CSE`
+/// or `100`).
 ///
 /// # Returns
 /// The formatted string.
@@ -250,7 +250,7 @@ pub fn format_multiple_courses<T: AsRef<str>>(query: &[T]) -> String {
             // 1. SubjCode
             // 2. Subj
             // 3. Code
-            // 4. Subj, Code
+            // 4. Subj, Code [handled implicitly by cases 2 and 3]
             //
             // For now, we'll go through each individual item in the vector and
             // process it
