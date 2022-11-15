@@ -385,7 +385,7 @@ mod test_search {
         let wrapper = get_wrapper();
         let adv_search = wrapper
             .search_courses_detailed(SearchType::Advanced(
-                SearchRequestBuilder::new()
+                &SearchRequestBuilder::new()
                     .add_department("CSE")
                     .filter_courses_by(CourseLevelFilter::LowerDivision)
                     .filter_courses_by(CourseLevelFilter::UpperDivision)
@@ -411,7 +411,7 @@ mod test_search {
         let wrapper = get_wrapper();
         let res = wrapper
             .search_courses(SearchType::Advanced(
-                SearchRequestBuilder::new()
+                &SearchRequestBuilder::new()
                     .filter_courses_by(CourseLevelFilter::LowerDivision)
                     .filter_courses_by(CourseLevelFilter::UpperDivision)
                     .add_department("CSE")
@@ -432,7 +432,7 @@ mod test_search {
         let wrapper = get_wrapper();
         let res = wrapper
             .search_courses(SearchType::Advanced(
-                SearchRequestBuilder::new().set_instructor("kedlaya"),
+                &SearchRequestBuilder::new().set_instructor("kedlaya"),
             ))
             .await
             .unwrap();
@@ -444,7 +444,7 @@ mod test_search {
         let wrapper = get_wrapper();
         let res = wrapper
             .search_courses(SearchType::Advanced(
-                SearchRequestBuilder::new().set_title("politics"),
+                &SearchRequestBuilder::new().set_title("politics"),
             ))
             .await
             .unwrap();
@@ -457,7 +457,7 @@ mod test_search {
         let wrapper = get_wrapper();
         let res = wrapper
             .search_courses(SearchType::Advanced(
-                SearchRequestBuilder::new()
+                &SearchRequestBuilder::new()
                     .filter_courses_by(CourseLevelFilter::Graduate)
                     .add_department("cse"),
             ))
