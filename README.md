@@ -174,7 +174,7 @@ use webweg::wrapper::{CourseLevelFilter, SearchRequestBuilder};
 
 let search_res = w
     .search_courses_detailed(SearchType::Advanced(
-        SearchRequestBuilder::new()
+        &SearchRequestBuilder::new()
             .add_department("CSE")
             .filter_courses_by(CourseLevelFilter::UpperDivision)
             .filter_courses_by(CourseLevelFilter::LowerDivision),

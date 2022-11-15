@@ -1208,7 +1208,7 @@ impl WebRegWrapper {
     /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
     /// let res = wrapper
     ///     .search_courses_detailed(SearchType::Advanced(
-    ///         SearchRequestBuilder::new()
+    ///         &SearchRequestBuilder::new()
     ///             .filter_courses_by(CourseLevelFilter::LowerDivision)
     ///             .filter_courses_by(CourseLevelFilter::UpperDivision)
     ///             .add_department("CSE")
@@ -1387,12 +1387,12 @@ impl WebRegWrapper {
                     request_filter.departments.join(":")
                 };
 
-                let professor = match request_filter.instructor {
+                let professor = match &request_filter.instructor {
                     Some(r) => r.to_uppercase(),
                     None => "".to_string(),
                 };
 
-                let title = match request_filter.title {
+                let title = match &request_filter.title {
                     Some(r) => r.to_uppercase(),
                     None => "".to_string(),
                 };
@@ -2937,7 +2937,7 @@ pub enum SearchType<'a> {
     ByMultipleSections(&'a [&'a str]),
 
     /// Searches for a (set of) course(s) by multiple specifications.
-    Advanced(SearchRequestBuilder),
+    Advanced(&'a SearchRequestBuilder),
 }
 
 /// The possible grading options.
