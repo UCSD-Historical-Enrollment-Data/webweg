@@ -8,21 +8,16 @@
   <a href="https://github.com/ewang2002/UCSDHistEnrollData">UCSDHistEnrollmentData</a>
 </p>
 
-An asynchronous API wrapper, written in Rust, for [UCSD](https://ucsd.edu/)'s 
-[WebReg](https://act.ucsd.edu/webreg2/start) course enrollment system.
+An asynchronous API wrapper, written in Rust, for the [University of California San Diego](https://ucsd.edu/)'s [WebReg](https://act.ucsd.edu/webreg2/start) course enrollment system.
 
 ## Usage
-In your `Cargo.toml`, put:
-```toml
-[dependencies]
-webweg = "0.7.0"
-```
+To use this crate, please see the **Install** section of webweg's [crates.io](https://crates.io/crates/webweg) page. 
 
 ## Wrapper Features
 A lot of the things that you can do on WebReg can be done with this 
 wrapper. For example, you're able to:
 - Get all possible classes in the quarter.
-- Search for classes based on some conditions (i.e. Advanced Search). 
+- Search for classes based on some conditions (i.e., advanced search). 
 - Get detailed information about a specific class (e.g., number of students 
 enrolled, instructor, etc.)
 - Get your current schedule. 
@@ -321,7 +316,7 @@ the project root directory (i.e., the directory with the `src` and
 `tests` directories).
 
 Due to WebReg constantly changing, making long-term tests is not
-feasible. Thus, I will only test major things.
+feasible. Tests for a specific term are not guaranteed to be maintained. 
 
 That being said, there are tests for all utility functions (things that
 can be tested in the long-term).
