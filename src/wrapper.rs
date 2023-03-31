@@ -20,6 +20,10 @@ use crate::types::{
 };
 use crate::util::{self, get_term_seq_id, parse_binary_days};
 
+const STATUS_ENROLL: &str = "EN";
+const STATUS_WAITLIST: &str = "WT";
+const STATUS_PLANNED: &str = "PL";
+
 /// The user agent to be used for WebReg. Note that WebReg requires a valid user agent.
 const MY_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, \
 like Gecko) Chrome/97.0.4692.71 Safari/537.36";
@@ -648,7 +652,6 @@ impl WebRegWrapper {
                     // At this point, we now want to look for data like section capacity, number of
                     // students on the waitlist, and so on. `data` is the main section that should
                     // have all this data.
-                    let wl_count = data.count_on_waitlist.unwrap_or(0);
                     let enrolled_count = data.enrolled_count.unwrap_or(-1);
                     let section_capacity = data.section_capacity.unwrap_or(-1);
 
@@ -671,14 +674,14 @@ impl WebRegWrapper {
                         grade_option: data.grade_option.trim().to_string(),
                         units: data.sect_credit_hrs,
                         enrolled_status: match data.enroll_status.as_str() {
-                            "EN" => EnrollmentStatus::Enrolled,
-                            "WT" => {
-                                EnrollmentStatus::Waitlist(data.waitlist_pos.parse().unwrap_or(-1))
-                            }
-                            "PL" => EnrollmentStatus::Planned,
+                            STATUS_ENROLL => EnrollmentStatus::Enrolled,
+                            STATUS_WAITLIST => EnrollmentStatus::Waitlist {
+                                waitlist_pos: data.waitlist_pos.parse().unwrap_or(-1),
+                            },
+                            STATUS_PLANNED => EnrollmentStatus::Planned,
                             _ => EnrollmentStatus::Unknown,
                         },
-                        waitlist_ct: wl_count,
+                        waitlist_ct: data.count_on_waitlist.unwrap_or(0),
                         meetings: all_meetings,
                     });
                 }
@@ -720,11 +723,11 @@ impl WebRegWrapper {
                 grade_option: sch_meetings[0].grade_option.trim().to_string(),
                 units: sch_meetings[0].sect_credit_hrs,
                 enrolled_status: match sch_meetings[0].enroll_status.as_str() {
-                    "EN" => EnrollmentStatus::Enrolled,
-                    "WT" => EnrollmentStatus::Waitlist(
-                        sch_meetings[0].waitlist_pos.parse().unwrap_or(-1),
-                    ),
-                    "PL" => EnrollmentStatus::Planned,
+                    STATUS_ENROLL => EnrollmentStatus::Enrolled,
+                    STATUS_WAITLIST => EnrollmentStatus::Waitlist {
+                        waitlist_pos: sch_meetings[0].waitlist_pos.parse().unwrap_or(-1),
+                    },
+                    STATUS_PLANNED => EnrollmentStatus::Planned,
                     _ => EnrollmentStatus::Unknown,
                 },
                 waitlist_ct: sch_meetings[0].count_on_waitlist.unwrap_or(0),
