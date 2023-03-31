@@ -62,7 +62,7 @@ impl ToString for CourseSection {
         );
 
         for meeting in &self.meetings {
-            s.push_str(&*meeting.to_string());
+            s.push_str(&meeting.to_string());
             s.push('\n');
         }
 
@@ -236,7 +236,7 @@ impl ToString for ScheduledSection {
         );
 
         for meeting in &self.meetings {
-            s.push_str(&*meeting.to_string());
+            s.push_str(&meeting.to_string());
             s.push('\n');
         }
 
