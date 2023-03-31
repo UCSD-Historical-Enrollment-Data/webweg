@@ -1,5 +1,15 @@
 #![allow(unused_qualifications)]
 
+use std::cmp::max;
+use std::collections::{HashMap, HashSet};
+
+use reqwest::header::{COOKIE, USER_AGENT};
+use reqwest::{Client, Error, Response};
+use serde::de::DeserializeOwned;
+use serde_json::{json, Value};
+use thiserror::Error;
+use url::Url;
+
 use crate::raw_types::{
     RawCoursePrerequisite, RawDepartmentElement, RawEvent, RawPrerequisite, RawScheduledMeeting,
     RawSubjectElement, RawWebRegMeeting, RawWebRegSearchResultItem,
@@ -9,22 +19,15 @@ use crate::types::{
     PrerequisiteInfo, ScheduledSection,
 };
 use crate::util::{self, get_term_seq_id, parse_binary_days};
-use reqwest::header::{COOKIE, USER_AGENT};
-use reqwest::{Client, Error, Response};
-use serde::de::DeserializeOwned;
-use serde_json::{json, Value};
-use std::cmp::max;
-use std::collections::{HashMap, HashSet};
-use thiserror::Error;
-use url::Url;
 
-// URLs for WebReg
+/// The user agent to be used for WebReg. Note that WebReg requires a valid user agent.
 const MY_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, \
 like Gecko) Chrome/97.0.4692.71 Safari/537.36";
 
+/// The default schedule name.
 const DEFAULT_SCHEDULE_NAME: &str = "My Schedule";
 
-// Random WebReg links
+// URLs for WebReg
 const WEBREG_BASE: &str = "https://act.ucsd.edu/webreg2";
 const WEBREG_SEARCH: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/search-by-all?";
 const WEBREG_SEARCH_SEC: &str =
@@ -356,7 +359,7 @@ impl WebRegWrapper {
     ///     Ok(o) => {
     ///         println!("Exam prerequisites: {:?}", o.exam_prerequisites);
     ///         println!("Course prerequisites: {:?}", o.course_prerequisites);
-    ///     },
+    ///     }
     ///     Err(e) => eprintln!("Error when getting prerequisites! {}", e)
     /// };
     /// # }
@@ -621,59 +624,69 @@ impl WebRegWrapper {
                 })
                 .for_each(|meeting| all_meetings.push(meeting));
 
-            // At this point, we now want to look for data like section capacity, number of
-            // students on the waitlist, and so on.
-            let wl_count = sch_meetings
+            // Find the main meeting (the one that you can enroll in). This meeting object has
+            // information like how many people are enrolled, capacity, etc. (the others will not).
+            let main_meeting = sch_meetings
                 .iter()
-                .find_map(|m| m.count_on_waitlist)
-                .ok_or_else(|| WrapperError::GeneralError("no waitlist property found".into()))?;
+                .find(|m| m.enrolled_count.is_some() && m.section_capacity.is_some());
 
-            let pos_on_wl = if sch_meetings[0].enroll_status == "WT" {
-                sch_meetings
-                    .iter()
-                    .find_map(|x| x.waitlist_pos.parse::<i64>().ok())
-                    .unwrap_or_default()
-            } else {
-                0
-            };
+            match main_meeting {
+                None => {
+                    // If we cannot find the meeting, then assume the schedule is deformed and return.
+                    return if sch_meetings.is_empty() {
+                        Err(WrapperError::GeneralError(format!(
+                            "{} {} is deformed",
+                            sch_meetings[0].sect_code, sch_meetings[0].course_code
+                        )))
+                    } else {
+                        Err(WrapperError::GeneralError(
+                            "schedule is deformed".to_owned(),
+                        ))
+                    };
+                }
+                Some(data) => {
+                    // At this point, we now want to look for data like section capacity, number of
+                    // students on the waitlist, and so on. `data` is the main section that should
+                    // have all this data.
+                    let wl_count = data.count_on_waitlist.unwrap_or(0);
+                    let enrolled_count = data.enrolled_count.unwrap_or(-1);
+                    let section_capacity = data.section_capacity.unwrap_or(-1);
 
-            let enrolled_count = sch_meetings
-                .iter()
-                .find_map(|m| m.enrolled_count)
-                .unwrap_or(-1);
-
-            let section_capacity = sch_meetings
-                .iter()
-                .find_map(|m| m.section_capacity)
-                .unwrap_or(-1);
-
-            schedule.push(ScheduledSection {
-                section_id: sch_meetings[0].section_id.to_string(),
-                all_instructors: instructors.clone(),
-                subject_code: sch_meetings[0].subj_code.trim().to_string(),
-                course_code: sch_meetings[0].course_code.trim().to_string(),
-                course_title: sch_meetings[0].course_title.trim().to_string(),
-                section_code: match sch_meetings.iter().find(|x| !x.sect_code.ends_with("00")) {
-                    Some(r) => r.sect_code.to_string(),
-                    None => sch_meetings[0].sect_code.to_string(),
-                },
-                section_capacity,
-                enrolled_count,
-                available_seats: max(section_capacity - enrolled_count, 0),
-                grade_option: sch_meetings[0].grade_option.trim().to_string(),
-                units: sch_meetings[0].sect_credit_hrs,
-                enrolled_status: match sch_meetings[0].enroll_status.as_str() {
-                    "EN" => EnrollmentStatus::Enrolled,
-                    "WT" => EnrollmentStatus::Waitlist(pos_on_wl),
-                    "PL" => EnrollmentStatus::Planned,
-                    _ => EnrollmentStatus::Unknown,
-                },
-                waitlist_ct: wl_count,
-                meetings: all_meetings,
-            });
+                    schedule.push(ScheduledSection {
+                        section_id: data.section_id.to_string(),
+                        all_instructors: instructors.clone(),
+                        subject_code: data.subj_code.trim().to_string(),
+                        course_code: data.course_code.trim().to_string(),
+                        course_title: data.course_title.trim().to_string(),
+                        section_code: match sch_meetings
+                            .iter()
+                            .find(|x| !x.sect_code.ends_with("00"))
+                        {
+                            Some(r) => r.sect_code.to_string(),
+                            None => data.sect_code.to_string(),
+                        },
+                        section_capacity,
+                        enrolled_count,
+                        available_seats: max(section_capacity - enrolled_count, 0),
+                        grade_option: data.grade_option.trim().to_string(),
+                        units: data.sect_credit_hrs,
+                        enrolled_status: match data.enroll_status.as_str() {
+                            "EN" => EnrollmentStatus::Enrolled,
+                            "WT" => {
+                                EnrollmentStatus::Waitlist(data.waitlist_pos.parse().unwrap_or(-1))
+                            }
+                            "PL" => EnrollmentStatus::Planned,
+                            _ => EnrollmentStatus::Unknown,
+                        },
+                        waitlist_ct: wl_count,
+                        meetings: all_meetings,
+                    });
+                }
+            }
         }
 
         // Now, we look into parsing the special sections. This is trivial to parse.
+        // TODO: See if these sections have more than one meeting.
         for (_, sch_meetings) in special_classes {
             let day_code = sch_meetings
                 .iter()
@@ -708,11 +721,13 @@ impl WebRegWrapper {
                 units: sch_meetings[0].sect_credit_hrs,
                 enrolled_status: match sch_meetings[0].enroll_status.as_str() {
                     "EN" => EnrollmentStatus::Enrolled,
-                    "WT" => EnrollmentStatus::Waitlist(-1),
+                    "WT" => EnrollmentStatus::Waitlist(
+                        sch_meetings[0].waitlist_pos.parse().unwrap_or(-1),
+                    ),
                     "PL" => EnrollmentStatus::Planned,
                     _ => EnrollmentStatus::Unknown,
                 },
-                waitlist_ct: -1,
+                waitlist_ct: sch_meetings[0].count_on_waitlist.unwrap_or(0),
                 meetings: vec![Meeting {
                     meeting_type: sch_meetings[0].meeting_type.to_string(),
                     meeting_days: parsed_day_code,
