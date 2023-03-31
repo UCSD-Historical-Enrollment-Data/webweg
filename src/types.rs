@@ -212,8 +212,8 @@ impl ToString for ScheduledSection {
     fn to_string(&self) -> String {
         let status: Cow<'_, str> = match self.enrolled_status {
             EnrollmentStatus::Enrolled => "Enrolled".into(),
-            EnrollmentStatus::Waitlist(r) => {
-                format!("Waitlisted {}/{}", r, self.waitlist_ct).into()
+            EnrollmentStatus::Waitlist { waitlist_pos } => {
+                format!("Waitlisted {}/{}", waitlist_pos, self.waitlist_ct).into()
             }
             EnrollmentStatus::Planned => "Planned".into(),
             EnrollmentStatus::Unknown => "Unknown".into(),
@@ -246,10 +246,10 @@ impl ToString for ScheduledSection {
 
 /// An enum that represents your enrollment status.
 #[derive(Debug, Clone, Serialize)]
-#[serde(untagged)]
+#[serde(tag = "enroll_status")]
 pub enum EnrollmentStatus {
     Enrolled,
-    Waitlist(i64),
+    Waitlist { waitlist_pos: i64 },
     Planned,
     Unknown,
 }
