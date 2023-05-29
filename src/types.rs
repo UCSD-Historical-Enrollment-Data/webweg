@@ -446,3 +446,12 @@ pub enum WrapperError {
 /// The generic type is the return value. Otherwise, regardless of request type,
 /// we're just returning the error string if there is an error.
 pub type Result<T, E = WrapperError> = std::result::Result<T, E>;
+
+/// A term that is available on WebReg.
+#[derive(Debug, Clone, Serialize)]
+pub struct Term {
+    /// The term ID.
+    pub seq_id: i64,
+    /// The term code (e.g., `SP23`).
+    pub term_code: String,
+}

@@ -401,3 +401,13 @@ pub struct RawDepartmentElement {
     #[serde(rename = "DEP_DESC")]
     pub dep_desc: String,
 }
+
+#[derive(Serialize, Deserialize)]
+pub struct RawTermListItem {
+    #[serde(rename = "termDesc")]
+    pub term_desc: String,
+    #[serde(rename = "seqId")]
+    pub seq_id: i64,
+    #[serde(rename = "termCode")]
+    pub term_code: String,
+}

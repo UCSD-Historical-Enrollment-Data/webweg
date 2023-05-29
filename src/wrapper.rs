@@ -11,14 +11,14 @@ use url::Url;
 
 use crate::raw_types::{
     RawCoursePrerequisite, RawDepartmentElement, RawEvent, RawPrerequisite, RawScheduledMeeting,
-    RawSubjectElement, RawWebRegMeeting, RawWebRegSearchResultItem,
+    RawSubjectElement, RawTermListItem, RawWebRegMeeting, RawWebRegSearchResultItem,
 };
 use crate::search::{DayOfWeek, SearchType};
 use crate::types;
 use crate::types::{
     CoursePrerequisite, CourseSection, EnrollWaitAdd, EnrollmentStatus, Event, EventAdd,
     GradeOption, GroupedSection, Meeting, MeetingDay, PlanAdd, PrerequisiteInfo, ScheduledSection,
-    WrapperError,
+    Term, WrapperError,
 };
 use crate::util::{self, get_term_seq_id, parse_binary_days};
 
@@ -76,6 +76,8 @@ const ELIGIBILITY: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/check-elig
 
 const SUBJ_LIST: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/search-load-subject?";
 const DEPT_LIST: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/search-load-department?";
+
+const TERM_LIST: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/get-term?";
 
 const VERIFY_FAIL_ERR: &str = "[{\"VERIFY\":\"FAIL\"}]";
 
@@ -217,21 +219,113 @@ impl WebRegWrapper {
         }
     }
 
-    /// Switches the term that the wrapper is using to a different term.
+    /// Registers all terms to your current session so that you can freely
+    /// access any terms using this wrapper.
     ///
-    /// This will change the `term` that is associated with this particular
-    /// wrapper.
+    /// By default, when you provide brand new WebReg cookies, it won't be
+    /// associated with any terms. In order to actually use your cookies to
+    /// make requests, you need to tell WebReg that you want to "associate"
+    /// your cookies with a particular term.
+    ///
+    /// # Returns
+    /// A result, where nothing is returned if everything went well and an
+    /// error is returned if something went wrong.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::wrapper::WebRegWrapper;
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
+    /// assert!(wrapper.register_all_terms().await.is_ok());
+    /// # }
+    /// ```
+    pub async fn register_all_terms(&self) -> types::Result<()> {
+        let terms = self.get_all_terms().await?;
+        for term in terms {
+            self.associate_term(term.term_code).await?;
+        }
+
+        Ok(())
+    }
+
+    /// Gets all terms available on WebReg.
+    ///
+    /// # Returns
+    /// A vector of term objects, with each object containing the term name and
+    /// term ID. If an error occurs, you will get that instead.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::wrapper::WebRegWrapper;
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA22");
+    /// assert!(wrapper.get_all_terms().await.unwrap().len() > 0);
+    /// # }
+    /// ```
+    pub async fn get_all_terms(&self) -> types::Result<Vec<Term>> {
+        let url = Url::parse_with_params(
+            TERM_LIST,
+            &[("_", util::get_epoch_time().to_string().as_str())],
+        )?;
+
+        self.process_get_result::<Vec<RawTermListItem>>(
+            self.client
+                .get(url)
+                .header(COOKIE, &self.cookies)
+                .header(USER_AGENT, MY_USER_AGENT)
+                .send()
+                .await,
+        )
+        .await
+        .map(|raw_term_list| {
+            raw_term_list
+                .into_iter()
+                .map(
+                    |RawTermListItem {
+                         seq_id, term_code, ..
+                     }| Term { seq_id, term_code },
+                )
+                .collect()
+        })
+    }
+
+    /// Associates a particular term to this current instance of the wrapper.
+    ///
+    /// After calling this function, you should be able to make requests to
+    /// WebReg with the specified term.
     ///
     /// Note that WebReg doesn't actually do any validation with your input,
     /// so you should ensure that the term you want to use is actually valid.
     ///
     /// # Parameters
-    /// - `term`: The term to switch to.
+    /// - `term`: The term to associate with your session cookies.
     ///
     /// # Returns
-    /// A result, where nothing is returned if everything goes well and an
-    /// error is returned if something goes wrong.
-    pub async fn use_term(&mut self, term: impl AsRef<str>) -> types::Result<()> {
+    /// A result, where nothing is returned if everything went well and an
+    /// error is returned if something went wrong.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use reqwest::Client;
+    /// use webweg::wrapper::WebRegWrapper;
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA23");
+    /// // Associate this wrapper with S123, S223, FA23.
+    /// wrapper.associate_term("S123").await;
+    /// wrapper.associate_term("S223").await;
+    /// wrapper.associate_term("FA23").await;
+    /// // We should now be able to use those three terms.
+    /// # }
+    /// ```
+    pub async fn associate_term(&self, term: impl AsRef<str>) -> types::Result<()> {
         let term = term.as_ref().to_uppercase();
         let seq_id = get_term_seq_id(&term);
         if seq_id == 0 {
@@ -280,7 +374,6 @@ impl WebRegWrapper {
         )
         .await?;
 
-        self.term = term;
         Ok(())
     }
 
