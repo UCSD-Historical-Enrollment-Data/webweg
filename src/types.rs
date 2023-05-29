@@ -1,6 +1,9 @@
 use std::borrow::Cow;
 
 use serde::Serialize;
+use thiserror::Error;
+
+use crate::search::DayOfWeek;
 
 /// A section, which consists of a lecture, usually a discussion, and usually a final.
 #[derive(Debug, Clone, Serialize)]
@@ -305,3 +308,141 @@ pub struct Event {
     /// The time when this event was created.
     pub timestamp: String,
 }
+
+// Helper structure for organizing meetings. Only used once for now.
+#[derive(Debug)]
+pub(crate) struct GroupedSection<'a, T> {
+    /// All general meetings. These include meetings that are consistent across *all* sections.
+    /// For example, lectures and final exams.
+    pub general_meetings: Vec<&'a T>,
+
+    /// All unique meetings. These are generally meetings that are unique the one section.
+    /// For example, discussions.
+    pub child_meetings: Vec<&'a T>,
+}
+
+/// Use this struct to add more information regarding the section that you want to enroll/waitlist
+/// in.
+pub struct EnrollWaitAdd<'a> {
+    /// The section ID. For example, `0123123`.
+    pub section_id: &'a str,
+    /// The grading option. Can either be L, P, or S.
+    /// If None is specified, this uses the default option.
+    pub grading_option: Option<GradeOption>,
+    /// The number of units. If none is specified, this
+    /// uses the default unit count.
+    pub unit_count: Option<u8>,
+}
+
+impl<'a> EnrollWaitAdd<'a> {
+    /// Creates a new `EnrollWaitAdd` structure with the specified `section_id` and default grading
+    /// option and unit count.
+    ///
+    /// # Parameters
+    /// - `section_id`: The section ID.
+    ///
+    /// # Returns
+    /// The structure.
+    pub fn new(section_id: &'a str) -> Self {
+        Self {
+            section_id,
+            grading_option: None,
+            unit_count: None,
+        }
+    }
+}
+
+// This trait implementation may be helpful later.
+impl<'a> AsRef<EnrollWaitAdd<'a>> for EnrollWaitAdd<'a> {
+    fn as_ref(&self) -> &EnrollWaitAdd<'a> {
+        self
+    }
+}
+
+/// Use this struct to add more information regarding the course that you want to plan.
+pub struct PlanAdd<'a> {
+    /// The subject code. For example, `CSE`.
+    pub subject_code: &'a str,
+    /// The course code. For example, `12`.
+    pub course_code: &'a str,
+    /// The section ID. For example, `0123123`.
+    pub section_id: &'a str,
+    /// The section code. For example `A00`.
+    pub section_code: &'a str,
+    /// The grading option.
+    pub grading_option: Option<GradeOption>,
+    /// The schedule name.
+    pub schedule_name: Option<&'a str>,
+    /// The number of units.
+    pub unit_count: u8,
+}
+
+/// A struct that represents an event to be added.
+pub struct EventAdd<'a> {
+    /// The name of the event. This is required.
+    pub event_name: &'a str,
+    /// The location of the event. This is optional.
+    pub location: Option<&'a str>,
+    /// The days that this event will be held.
+    pub event_days: Vec<DayOfWeek>,
+    /// The hour start time. For example, if the event starts at
+    /// 3:50 PM, use `15` (since `12 + 3 = 15`).
+    pub start_hr: i16,
+    /// The minute start time. For example, if the event starts at
+    /// 3:50 PM, use `50`.
+    pub start_min: i16,
+    /// The hour end time. For example, if the event ends at 3:50 PM,
+    /// use `15` (since `12 + 3 = 15`).
+    pub end_hr: i16,
+    /// The minute end time. For example, if the event ends at 3:50 PM,
+    /// use `50`.
+    pub end_min: i16,
+}
+
+/// The possible grading options.
+pub enum GradeOption {
+    /// S/U grading (Satisfactory/Unsatisfactory) option.
+    S,
+
+    /// P/NP grading (Pass/No Pass) option.
+    P,
+
+    /// Letter grading option.
+    L,
+}
+
+#[derive(Error, Debug)]
+pub enum WrapperError {
+    /// Occurs if there was an error encountered by the reqwest library.
+    #[error("request error occurred: {0}")]
+    RequestError(#[from] reqwest::Error),
+
+    /// Occurs when there was an error with serde.
+    #[error("serde error occurred: {0}")]
+    SerdeError(#[from] serde_json::Error),
+
+    /// Occurs when the wrapper encounters a bad status code
+    #[error("unsuccessful status code: {0}")]
+    BadStatusCode(u16),
+
+    /// Occurs when an error from WebReg was returned.
+    #[error("error from WebReg: {0}")]
+    WebRegError(String),
+
+    /// Occurs when the given input is not valid.
+    #[error("invalid input for '{0}' provided: {1}")]
+    InputError(&'static str, &'static str),
+
+    /// The general error, given when the particular error doesn't
+    /// fit into any of the other categories.
+    #[error("error: {0}")]
+    GeneralError(String),
+
+    /// Occurs when there was an error parsing the URL.
+    #[error("malformed url: {0}")]
+    UrlParseError(#[from] url::ParseError),
+}
+
+/// The generic type is the return value. Otherwise, regardless of request type,
+/// we're just returning the error string if there is an error.
+pub type Result<T, E = WrapperError> = std::result::Result<T, E>;

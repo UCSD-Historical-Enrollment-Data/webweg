@@ -7,7 +7,6 @@ use reqwest::header::{COOKIE, USER_AGENT};
 use reqwest::{Client, Error, Response};
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
-use thiserror::Error;
 use url::Url;
 
 use crate::raw_types::{
@@ -15,9 +14,11 @@ use crate::raw_types::{
     RawSubjectElement, RawWebRegMeeting, RawWebRegSearchResultItem,
 };
 use crate::search::{DayOfWeek, SearchType};
+use crate::types;
 use crate::types::{
-    CoursePrerequisite, CourseSection, EnrollmentStatus, Event, Meeting, MeetingDay,
-    PrerequisiteInfo, ScheduledSection,
+    CoursePrerequisite, CourseSection, EnrollWaitAdd, EnrollmentStatus, Event, EventAdd,
+    GradeOption, GroupedSection, Meeting, MeetingDay, PlanAdd, PrerequisiteInfo, ScheduledSection,
+    WrapperError,
 };
 use crate::util::{self, get_term_seq_id, parse_binary_days};
 
@@ -77,42 +78,6 @@ const SUBJ_LIST: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/searc
 const DEPT_LIST: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/search-load-department?";
 
 const VERIFY_FAIL_ERR: &str = "[{\"VERIFY\":\"FAIL\"}]";
-
-#[derive(Error, Debug)]
-pub enum WrapperError {
-    /// Occurs if there was an error encountered by the reqwest library.
-    #[error("request error occurred: {0}")]
-    RequestError(#[from] reqwest::Error),
-
-    /// Occurs when there was an error with serde.
-    #[error("serde error occurred: {0}")]
-    SerdeError(#[from] serde_json::Error),
-
-    /// Occurs when the wrapper encounters a bad status code
-    #[error("unsuccessful status code: {0}")]
-    BadStatusCode(u16),
-
-    /// Occurs when an error from WebReg was returned.
-    #[error("error from WebReg: {0}")]
-    WebRegError(String),
-
-    /// Occurs when the given input is not valid.
-    #[error("invalid input for '{0}' provided: {1}")]
-    InputError(&'static str, &'static str),
-
-    /// The general error, given when the particular error doesn't
-    /// fit into any of the other categories.
-    #[error("error: {0}")]
-    GeneralError(String),
-
-    /// Occurs when there was an error parsing the URL.
-    #[error("malformed url: {0}")]
-    UrlParseError(#[from] url::ParseError),
-}
-
-/// The generic type is the return value. Otherwise, regardless of request type,
-/// we're just returning the error string if there is an error.
-pub type Result<T, E = WrapperError> = std::result::Result<T, E>;
 
 /// A wrapper for [UCSD's WebReg](https://act.ucsd.edu/webreg2/start). For more information,
 /// please see the README.
@@ -235,7 +200,7 @@ impl WebRegWrapper {
     /// assert_eq!("Your name here", wrapper.get_account_name().await.unwrap());
     /// # }
     /// ```
-    pub async fn get_account_name(&self) -> self::Result<String> {
+    pub async fn get_account_name(&self) -> types::Result<String> {
         let res = self
             .client
             .get(ACC_NAME)
@@ -266,7 +231,7 @@ impl WebRegWrapper {
     /// # Returns
     /// A result, where nothing is returned if everything goes well and an
     /// error is returned if something goes wrong.
-    pub async fn use_term(&mut self, term: impl AsRef<str>) -> self::Result<()> {
+    pub async fn use_term(&mut self, term: impl AsRef<str>) -> types::Result<()> {
         let term = term.as_ref().to_uppercase();
         let seq_id = get_term_seq_id(&term);
         if seq_id == 0 {
@@ -373,7 +338,7 @@ impl WebRegWrapper {
         &self,
         subject_code: impl AsRef<str>,
         course_code: impl AsRef<str>,
-    ) -> self::Result<PrerequisiteInfo> {
+    ) -> types::Result<PrerequisiteInfo> {
         let url = Url::parse_with_params(
             PREREQS_INFO,
             &[
@@ -484,7 +449,7 @@ impl WebRegWrapper {
     pub async fn get_schedule(
         &self,
         schedule_name: Option<&str>,
-    ) -> self::Result<Vec<ScheduledSection>> {
+    ) -> types::Result<Vec<ScheduledSection>> {
         let url = Url::parse_with_params(
             CURR_SCHEDULE,
             &[
@@ -791,7 +756,7 @@ impl WebRegWrapper {
         &self,
         subject_code: impl AsRef<str>,
         course_num: impl AsRef<str>,
-    ) -> self::Result<Vec<CourseSection>> {
+    ) -> types::Result<Vec<CourseSection>> {
         let crsc_code = util::get_formatted_course_num(course_num.as_ref());
         let url = Url::parse_with_params(
             COURSE_DATA,
@@ -899,7 +864,7 @@ impl WebRegWrapper {
         &self,
         subject_code: impl AsRef<str>,
         course_num: impl AsRef<str>,
-    ) -> self::Result<Vec<CourseSection>> {
+    ) -> types::Result<Vec<CourseSection>> {
         let crsc_code = util::get_formatted_course_num(course_num.as_ref());
         let url = Url::parse_with_params(
             COURSE_DATA,
@@ -1252,7 +1217,7 @@ impl WebRegWrapper {
     pub async fn search_courses_detailed(
         &self,
         filter_by: SearchType<'_>,
-    ) -> self::Result<Vec<CourseSection>> {
+    ) -> types::Result<Vec<CourseSection>> {
         let get_zero_trim = |s: &[u8]| -> (usize, usize) {
             let start = s.iter().position(|p| *p != b'0').unwrap_or(0);
             let end = s.iter().rposition(|p| *p != b'0').unwrap_or(0);
@@ -1312,7 +1277,7 @@ impl WebRegWrapper {
     ///
     /// # Returns
     /// A vector of department codes.
-    pub async fn get_all_department_codes(&self) -> self::Result<Vec<String>> {
+    pub async fn get_all_department_codes(&self) -> types::Result<Vec<String>> {
         Ok(self
             .process_get_result::<Vec<RawDepartmentElement>>(
                 self.client
@@ -1338,7 +1303,7 @@ impl WebRegWrapper {
     ///
     /// # Returns
     /// A vector of subject codes.
-    pub async fn get_all_subject_codes(&self) -> self::Result<Vec<String>> {
+    pub async fn get_all_subject_codes(&self) -> types::Result<Vec<String>> {
         Ok(self
             .process_get_result::<Vec<RawSubjectElement>>(
                 self.client
@@ -1375,7 +1340,7 @@ impl WebRegWrapper {
     pub async fn search_courses(
         &self,
         filter_by: SearchType<'_>,
-    ) -> self::Result<Vec<RawWebRegSearchResultItem>> {
+    ) -> types::Result<Vec<RawWebRegSearchResultItem>> {
         let url = match filter_by {
             SearchType::BySection(section) => Url::parse_with_params(
                 WEBREG_SEARCH_SEC,
@@ -1531,7 +1496,7 @@ impl WebRegWrapper {
     /// };
     /// # }
     /// ```
-    pub async fn send_email_to_self(&self, email_content: &str) -> self::Result<()> {
+    pub async fn send_email_to_self(&self, email_content: &str) -> types::Result<()> {
         let r = self
             .client
             .post(SEND_EMAIL)
@@ -1572,7 +1537,8 @@ impl WebRegWrapper {
     /// Changing the section associated with section ID `12345` to letter grading option.
     /// ```rust,no_run
     /// use reqwest::Client;
-    /// use webweg::wrapper::{GradeOption, WebRegWrapper};
+    /// use webweg::types::GradeOption;
+    /// use webweg::wrapper::WebRegWrapper;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
     /// # async fn main() {
@@ -1589,7 +1555,7 @@ impl WebRegWrapper {
         &self,
         section_id: &str,
         new_grade_opt: GradeOption,
-    ) -> self::Result<bool> {
+    ) -> types::Result<bool> {
         let new_grade_opt = match new_grade_opt {
             GradeOption::L => "L",
             GradeOption::S => "S",
@@ -1670,7 +1636,8 @@ impl WebRegWrapper {
     /// `A01`, to our plan.
     /// ```rust,no_run
     /// use reqwest::Client;
-    /// use webweg::wrapper::{GradeOption, PlanAdd, WebRegWrapper};
+    /// use webweg::types::{GradeOption, PlanAdd};
+    /// use webweg::wrapper::WebRegWrapper;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
     /// # async fn main() {
@@ -1694,7 +1661,7 @@ impl WebRegWrapper {
     /// };
     /// # }
     /// ```
-    pub async fn validate_add_to_plan(&self, plan_options: &PlanAdd<'_>) -> self::Result<bool> {
+    pub async fn validate_add_to_plan(&self, plan_options: &PlanAdd<'_>) -> types::Result<bool> {
         let crsc_code = util::get_formatted_course_num(plan_options.course_code);
         self.process_post_response(
             self.client
@@ -1763,7 +1730,7 @@ impl WebRegWrapper {
         &self,
         plan_options: PlanAdd<'_>,
         validate: bool,
-    ) -> self::Result<bool> {
+    ) -> types::Result<bool> {
         let u = plan_options.unit_count.to_string();
         let crsc_code = util::get_formatted_course_num(plan_options.course_code);
 
@@ -1844,7 +1811,7 @@ impl WebRegWrapper {
         &self,
         section_id: impl AsRef<str>,
         schedule_name: Option<&str>,
-    ) -> self::Result<bool> {
+    ) -> types::Result<bool> {
         self.process_post_response(
             self.client
                 .post(PLAN_REMOVE)
@@ -1878,7 +1845,8 @@ impl WebRegWrapper {
     /// option and unit count.
     /// ```rust,no_run
     /// use reqwest::Client;
-    /// use webweg::wrapper::{EnrollWaitAdd, WebRegWrapper};
+    /// use webweg::types::EnrollWaitAdd;
+    /// use webweg::wrapper::WebRegWrapper;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
     /// # async fn main() {
@@ -1911,7 +1879,7 @@ impl WebRegWrapper {
         &self,
         is_enroll: bool,
         enroll_options: &EnrollWaitAdd<'_>,
-    ) -> self::Result<bool> {
+    ) -> types::Result<bool> {
         let base_edit_url = if is_enroll {
             ENROLL_EDIT
         } else {
@@ -1990,7 +1958,7 @@ impl WebRegWrapper {
         is_enroll: bool,
         enroll_options: EnrollWaitAdd<'_>,
         validate: bool,
-    ) -> self::Result<bool> {
+    ) -> types::Result<bool> {
         let base_reg_url = if is_enroll { ENROLL_ADD } else { WAITLIST_ADD };
         let u = match enroll_options.unit_count {
             Some(r) => r.to_string(),
@@ -2086,7 +2054,7 @@ impl WebRegWrapper {
         &self,
         was_enrolled: bool,
         section_id: impl AsRef<str>,
-    ) -> self::Result<bool> {
+    ) -> types::Result<bool> {
         let base_reg_url = if was_enrolled {
             ENROLL_DROP
         } else {
@@ -2173,7 +2141,7 @@ impl WebRegWrapper {
         &self,
         old_name: impl AsRef<str>,
         new_name: impl AsRef<str>,
-    ) -> self::Result<bool> {
+    ) -> types::Result<bool> {
         // Can't rename your default schedule.
         if old_name.as_ref() == DEFAULT_SCHEDULE_NAME {
             return Err(WrapperError::InputError(
@@ -2222,7 +2190,7 @@ impl WebRegWrapper {
     /// assert!(!wrapper.get_schedule_list().await.unwrap().contains(&"Test Schedule".to_string()));
     /// # }
     /// ```
-    pub async fn remove_schedule(&self, schedule_name: impl AsRef<str>) -> self::Result<bool> {
+    pub async fn remove_schedule(&self, schedule_name: impl AsRef<str>) -> types::Result<bool> {
         // Can't remove your default schedule.
         if schedule_name.as_ref() == DEFAULT_SCHEDULE_NAME {
             return Err(WrapperError::InputError(
@@ -2262,8 +2230,8 @@ impl WebRegWrapper {
     /// Renaming the schedule "`Test Schedule`" to "`Another Schedule`."
     /// ```rust,no_run
     /// use reqwest::Client;
-    /// use webweg::wrapper::{DayOfWeek, WebRegWrapper};
-    /// use webweg::wrapper::EventAdd;
+    /// use webweg::types::{DayOfWeek, EventAdd};
+    /// use webweg::wrapper::WebRegWrapper;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
     /// # async fn main() {
@@ -2289,7 +2257,7 @@ impl WebRegWrapper {
         &self,
         event_info: EventAdd<'_>,
         event_timestamp: impl Into<Option<&str>>,
-    ) -> self::Result<bool> {
+    ) -> types::Result<bool> {
         let start_time_full = event_info.start_hr * 100 + event_info.start_min;
         let end_time_full = event_info.end_hr * 100 + event_info.end_min;
         if start_time_full >= end_time_full {
@@ -2404,7 +2372,7 @@ impl WebRegWrapper {
     /// wrapper.remove_event("2022-09-09 21:50:16.846885").await.expect("an error occurred");
     /// # }
     /// ```
-    pub async fn remove_event(&self, event_timestamp: impl AsRef<str>) -> self::Result<bool> {
+    pub async fn remove_event(&self, event_timestamp: impl AsRef<str>) -> types::Result<bool> {
         self.process_post_response(
             self.client
                 .post(EVENT_REMOVE)
@@ -2438,7 +2406,7 @@ impl WebRegWrapper {
     /// let all_events = wrapper.get_events().await;
     /// # }
     /// ```
-    pub async fn get_events(&self) -> self::Result<Vec<Event>> {
+    pub async fn get_events(&self) -> types::Result<Vec<Event>> {
         let url = Url::parse_with_params(EVENT_GET, &[("termcode", self.term.as_str())]).unwrap();
         let raw_events = self
             .process_get_result::<Vec<RawEvent>>(
@@ -2484,7 +2452,7 @@ impl WebRegWrapper {
     /// # Returns
     /// Either a vector of strings representing the names of the schedules, or the error that
     /// occurred.
-    pub async fn get_schedule_list(&self) -> self::Result<Vec<String>> {
+    pub async fn get_schedule_list(&self) -> types::Result<Vec<String>> {
         let url = Url::parse_with_params(ALL_SCHEDULE, &[("termcode", self.term.as_str())])?;
 
         self.process_get_result::<Vec<String>>(
@@ -2508,7 +2476,7 @@ impl WebRegWrapper {
     async fn process_get_result<T: DeserializeOwned>(
         &self,
         res: Result<Response, Error>,
-    ) -> self::Result<T> {
+    ) -> types::Result<T> {
         let r = res?;
         if !r.status().is_success() {
             return Err(WrapperError::BadStatusCode(r.status().as_u16()));
@@ -2533,7 +2501,7 @@ impl WebRegWrapper {
     /// Either one of:
     /// - `true` or `false`, depending on what WebReg returns.
     /// - or some error message if an error occurred.
-    async fn process_post_response(&self, res: Result<Response, Error>) -> self::Result<bool> {
+    async fn process_post_response(&self, res: Result<Response, Error>) -> types::Result<bool> {
         let r = res?;
         if !r.status().is_success() {
             return Err(WrapperError::BadStatusCode(r.status().as_u16()));
@@ -2609,106 +2577,4 @@ impl WebRegWrapper {
     fn internal_is_valid(&self, s: &str) -> bool {
         !s.contains("Skip to main content")
     }
-}
-
-// Helper structure for organizing meetings. Only used once for now.
-#[derive(Debug)]
-struct GroupedSection<'a, T> {
-    /// All general meetings. These include meetings that are consistent across *all* sections.
-    /// For example, lectures and final exams.
-    general_meetings: Vec<&'a T>,
-
-    /// All unique meetings. These are generally meetings that are unique the one section.
-    /// For example, discussions.
-    child_meetings: Vec<&'a T>,
-}
-
-/// Use this struct to add more information regarding the section that you want to enroll/waitlist
-/// in.
-pub struct EnrollWaitAdd<'a> {
-    /// The section ID. For example, `0123123`.
-    pub section_id: &'a str,
-    /// The grading option. Can either be L, P, or S.
-    /// If None is specified, this uses the default option.
-    pub grading_option: Option<GradeOption>,
-    /// The number of units. If none is specified, this
-    /// uses the default unit count.
-    pub unit_count: Option<u8>,
-}
-
-impl<'a> EnrollWaitAdd<'a> {
-    /// Creates a new `EnrollWaitAdd` structure with the specified `section_id` and default grading
-    /// option and unit count.
-    ///
-    /// # Parameters
-    /// - `section_id`: The section ID.
-    ///
-    /// # Returns
-    /// The structure.
-    pub fn new(section_id: &'a str) -> Self {
-        Self {
-            section_id,
-            grading_option: None,
-            unit_count: None,
-        }
-    }
-}
-
-// This trait implementation may be helpful later.
-impl<'a> AsRef<EnrollWaitAdd<'a>> for EnrollWaitAdd<'a> {
-    fn as_ref(&self) -> &EnrollWaitAdd<'a> {
-        self
-    }
-}
-
-/// Use this struct to add more information regarding the course that you want to plan.
-pub struct PlanAdd<'a> {
-    /// The subject code. For example, `CSE`.
-    pub subject_code: &'a str,
-    /// The course code. For example, `12`.
-    pub course_code: &'a str,
-    /// The section ID. For example, `0123123`.
-    pub section_id: &'a str,
-    /// The section code. For example `A00`.
-    pub section_code: &'a str,
-    /// The grading option.
-    pub grading_option: Option<GradeOption>,
-    /// The schedule name.
-    pub schedule_name: Option<&'a str>,
-    /// The number of units.
-    pub unit_count: u8,
-}
-
-/// A struct that represents an event to be added.
-pub struct EventAdd<'a> {
-    /// The name of the event. This is required.
-    pub event_name: &'a str,
-    /// The location of the event. This is optional.
-    pub location: Option<&'a str>,
-    /// The days that this event will be held.
-    pub event_days: Vec<DayOfWeek>,
-    /// The hour start time. For example, if the event starts at
-    /// 3:50 PM, use `15` (since `12 + 3 = 15`).
-    pub start_hr: i16,
-    /// The minute start time. For example, if the event starts at
-    /// 3:50 PM, use `50`.
-    pub start_min: i16,
-    /// The hour end time. For example, if the event ends at 3:50 PM,
-    /// use `15` (since `12 + 3 = 15`).
-    pub end_hr: i16,
-    /// The minute end time. For example, if the event ends at 3:50 PM,
-    /// use `50`.
-    pub end_min: i16,
-}
-
-/// The possible grading options.
-pub enum GradeOption {
-    /// S/U grading (Satisfactory/Unsatisfactory) option.
-    S,
-
-    /// P/NP grading (Pass/No Pass) option.
-    P,
-
-    /// Letter grading option.
-    L,
 }
