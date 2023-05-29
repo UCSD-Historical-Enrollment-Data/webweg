@@ -1,6 +1,6 @@
 [package]
 name = "webweg"
-version = "0.7.4"
+version = "0.8.0"
 edition = "2021"
 description = "An asynchronous API wrapper for UCSD's WebReg course enrollment system."
 readme = "README.md"
