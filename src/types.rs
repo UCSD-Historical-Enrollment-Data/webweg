@@ -1,9 +1,8 @@
 use std::borrow::Cow;
 
+use crate::wrapper::search::DayOfWeek;
 use serde::Serialize;
 use thiserror::Error;
-
-use crate::search::DayOfWeek;
 
 /// A section, which consists of a lecture, usually a discussion, and usually a final.
 #[derive(Debug, Clone, Serialize)]

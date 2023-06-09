@@ -26,7 +26,7 @@ pub fn parse_meeting_type_date(w_meeting: &RawWebRegMeeting) -> (&str, MeetingDa
 
     let regular_meeting = w_meeting.meeting_type.trim();
     let day_code = w_meeting.day_code.trim();
-    assert!(day_code.chars().into_iter().all(|x| x.is_numeric()));
+    assert!(day_code.chars().all(|x| x.is_numeric()));
 
     if day_code.is_empty() {
         (regular_meeting, MeetingDay::None)
