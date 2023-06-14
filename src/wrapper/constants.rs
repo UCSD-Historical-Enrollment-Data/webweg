@@ -49,7 +49,8 @@ pub(crate) const ENROLL_DROP: &str =
 pub(crate) const WAITLIST_ADD: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/add-wait";
 pub(crate) const WAITLIST_EDIT: &str =
     "https://act.ucsd.edu/webreg2/svc/wradapter/secure/edit-wait";
-pub(crate) const WAILIST_DROP: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/secure/drop-wait";
+pub(crate) const WAITLIST_DROP: &str =
+    "https://act.ucsd.edu/webreg2/svc/wradapter/secure/drop-wait";
 
 pub(crate) const PREREQS_INFO: &str =
     "https://act.ucsd.edu/webreg2/svc/wradapter/secure/get-prerequisites?";

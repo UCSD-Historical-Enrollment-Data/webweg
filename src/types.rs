@@ -443,3 +443,23 @@ pub struct Term {
     /// The term code (e.g., `SP23`).
     pub term_code: String,
 }
+
+/// An enum that represents how a course should be added to the person's schedule when
+/// calling the corresponding `add_section` method (and associated methods).
+pub enum AddType {
+    /// Indicates that the user wants to enroll into the section.
+    Enroll,
+    /// Indicates that the user wants to waitlist the section.
+    Waitlist,
+    /// Have the library check whether the user should enroll or waitlist.
+    DecideForMe,
+}
+
+/// An enum that's similar to `AddType`, but explicitly only allows `Enroll` or `Waitlist`
+/// actions.
+pub enum ExplicitAddType {
+    /// Indicates that the user wants to enroll into the section.
+    Enroll,
+    /// Indicates that the user wants to waitlist the section.
+    Waitlist,
+}

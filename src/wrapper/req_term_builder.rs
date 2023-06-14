@@ -10,14 +10,14 @@ use crate::raw_types::{
     RawWebRegMeeting, RawWebRegSearchResultItem,
 };
 use crate::types::{
-    CourseSection, EnrollWaitAdd, Event, EventAdd, GradeOption, PlanAdd, PrerequisiteInfo,
-    ScheduledSection, WrapperError,
+    AddType, CourseSection, EnrollWaitAdd, Event, EventAdd, ExplicitAddType, GradeOption, PlanAdd,
+    PrerequisiteInfo, ScheduledSection, WrapperError,
 };
 use crate::wrapper::constants::{
     ALL_SCHEDULE, CHANGE_ENROLL, COURSE_DATA, CURR_SCHEDULE, DEFAULT_SCHEDULE_NAME, DEPT_LIST,
     ENROLL_ADD, ENROLL_DROP, ENROLL_EDIT, EVENT_ADD, EVENT_EDIT, EVENT_GET, EVENT_REMOVE, PLAN_ADD,
     PLAN_EDIT, PLAN_REMOVE, PLAN_REMOVE_ALL, PREREQS_INFO, REMOVE_SCHEDULE, RENAME_SCHEDULE,
-    SEND_EMAIL, SUBJ_LIST, WAILIST_DROP, WAITLIST_ADD, WAITLIST_EDIT,
+    SEND_EMAIL, SUBJ_LIST, WAITLIST_ADD, WAITLIST_DROP, WAITLIST_EDIT,
 };
 use crate::wrapper::search::{DayOfWeek, SearchType};
 use crate::wrapper::ww_helper::{process_get_result, process_post_response};
@@ -864,7 +864,8 @@ impl<'a> WrapperTermRequest<'a> {
     /// Validates that the section that you are trying to enroll in is valid.
     ///
     /// # Parameters
-    /// - `is_enroll`: Whether you are enrolling.
+    /// - `add_type`: The add type. As a warning, specifying `DecideForMe` will incur extra
+    /// requests (searching by section ID, then searching for course).
     /// - `enroll_options`: The enrollment options. Note that the section ID is the only thing
     /// that matters here. A reference, thus, is expected since you will probably be reusing
     /// the structure when calling the `add_section` function.
@@ -877,7 +878,7 @@ impl<'a> WrapperTermRequest<'a> {
     /// Here, we will enroll in the course with section ID `078616`, and with the default grading
     /// option and unit count.
     /// ```rust,no_run
-    /// use webweg::types::EnrollWaitAdd;
+    /// use webweg::types::{AddType, EnrollWaitAdd};
     /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
@@ -896,7 +897,7 @@ impl<'a> WrapperTermRequest<'a> {
     ///
     /// let add_res = wrapper
     ///     .default_request()
-    ///     .validate_add_section(true, &enroll_options)
+    ///     .validate_add_section(AddType::Enroll, &enroll_options)
     ///     .await;
     ///
     /// match add_res {
@@ -907,13 +908,16 @@ impl<'a> WrapperTermRequest<'a> {
     /// ```
     pub async fn validate_add_section(
         &self,
-        is_enroll: bool,
+        add_type: AddType,
         enroll_options: &EnrollWaitAdd<'_>,
     ) -> types::Result<bool> {
-        let base_edit_url = if is_enroll {
-            ENROLL_EDIT
-        } else {
-            WAITLIST_EDIT
+        let base_edit_url = match add_type {
+            AddType::Enroll => ENROLL_EDIT,
+            AddType::Waitlist => WAITLIST_EDIT,
+            AddType::DecideForMe => match self.get_add_type(enroll_options.section_id).await? {
+                ExplicitAddType::Enroll => ENROLL_EDIT,
+                ExplicitAddType::Waitlist => WAITLIST_EDIT,
+            },
         };
 
         process_post_response(
@@ -936,11 +940,59 @@ impl<'a> WrapperTermRequest<'a> {
         .await
     }
 
+    /// Checks whether the user can enroll or waitlist into a section.
+    ///
+    /// Keep in mind that this implementation does _not_ check if you are able to enroll
+    /// into a class, just that there are enough seats for you to enroll.
+    ///
+    /// # Parameters
+    /// - `section_id`: The section ID to check.
+    ///
+    /// # Returns
+    /// An enum value that can either be `Enroll` or `Waitlist` depending on whether
+    /// the user can enroll into the specified section.
+    pub async fn get_add_type(&self, section_id: &str) -> types::Result<ExplicitAddType> {
+        let search_res = self
+            .search_courses(SearchType::BySection(section_id))
+            .await?;
+
+        if search_res.is_empty() {
+            return Err(WrapperError::GeneralError(format!(
+                "{section_id} not found."
+            )));
+        }
+
+        let subject_code = search_res[0].subj_code.trim();
+        let course_code = search_res[0].course_code.trim();
+
+        let enroll_count_info = self.get_enrollment_count(subject_code, course_code).await?;
+        if enroll_count_info.is_empty() {
+            return Err(WrapperError::GeneralError(format!(
+                "{section_id} not found."
+            )));
+        }
+
+        let section_info = enroll_count_info
+            .into_iter()
+            .find(|sec| sec.section_id == section_id);
+        if let Some(info) = section_info {
+            if info.has_seats() {
+                Ok(ExplicitAddType::Enroll)
+            } else {
+                Ok(ExplicitAddType::Waitlist)
+            }
+        } else {
+            Err(WrapperError::GeneralError(format!(
+                "{section_id} not found."
+            )))
+        }
+    }
+
     /// Enrolls in, or waitlists, a class.
     ///
     /// # Parameters
-    /// - `is_enroll`: Whether you want to enroll. This should be `true` if you want to enroll
-    /// in this section and `false` if you want to waitlist.
+    /// - `add_type`: The add type (either `Enroll`, `Waitlist`, for `DecideForMe`). As a warning,
+    /// `DecideForMe` will incur extra requests.
     /// - `enroll_options`: Information for the course that you want to enroll in.
     /// - `validate`: Whether to validate your enrollment of this course beforehand. Note that
     /// validation is required, so this should be `true`. This should only be `false` if you
@@ -955,7 +1007,7 @@ impl<'a> WrapperTermRequest<'a> {
     /// Here, we will enroll in the course with section ID `260737`, and with the default grading
     /// option and unit count.
     /// ```rust,no_run
-    /// use webweg::types::EnrollWaitAdd;
+    /// use webweg::types::{AddType, EnrollWaitAdd};
     /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
@@ -974,9 +1026,8 @@ impl<'a> WrapperTermRequest<'a> {
     ///
     /// let add_res = wrapper
     ///     .default_request()
-    ///     // The first true means that we're *enrolling* in this section.
-    ///     // If this was false, then we would be waitlisting.
-    ///     .add_section(true, enroll_options, true)
+    ///     // Let the library decide if we should enroll or waitlist
+    ///     .add_section(AddType::DecideForMe, enroll_options, true)
     ///     .await;
     ///
     /// match add_res {
@@ -987,19 +1038,25 @@ impl<'a> WrapperTermRequest<'a> {
     /// ```
     pub async fn add_section(
         &self,
-        is_enroll: bool,
+        add_type: AddType,
         enroll_options: EnrollWaitAdd<'_>,
         validate: bool,
     ) -> types::Result<bool> {
-        let base_reg_url = if is_enroll { ENROLL_ADD } else { WAITLIST_ADD };
+        let base_reg_url = match add_type {
+            AddType::Enroll => ENROLL_ADD,
+            AddType::Waitlist => WAITLIST_ADD,
+            AddType::DecideForMe => match self.get_add_type(enroll_options.section_id).await? {
+                ExplicitAddType::Enroll => ENROLL_ADD,
+                ExplicitAddType::Waitlist => WAITLIST_ADD,
+            },
+        };
         let u = match enroll_options.unit_count {
             Some(r) => r.to_string(),
             None => "".to_string(),
         };
 
         if validate {
-            self.validate_add_section(is_enroll, &enroll_options)
-                .await?;
+            self.validate_add_section(add_type, &enroll_options).await?;
         }
 
         process_post_response(
@@ -1049,8 +1106,8 @@ impl<'a> WrapperTermRequest<'a> {
     /// Drops a section.
     ///
     /// # Parameters
-    /// - `was_enrolled`: Whether you were originally enrolled in the section. This would
-    /// be `true` if you were enrolled and `false` if waitlisted.
+    /// - `prev_enroll_status`: Your enrollment status (either `Enroll` or `Waitlist` if you
+    /// are enrolled or waitlisted in the section, respectively).
     /// - `section_id`: The section ID corresponding to the section that you want to drop.
     ///
     /// # Returns
@@ -1066,6 +1123,7 @@ impl<'a> WrapperTermRequest<'a> {
     /// drop it.
     /// ```rust,no_run
     /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
+    /// use webweg::types::{EnrollWaitAdd, ExplicitAddType};
     ///
     /// # #[tokio::main(flavor = "current_thread")]
     /// # async fn main() {
@@ -1077,7 +1135,7 @@ impl<'a> WrapperTermRequest<'a> {
     ///
     /// let drop_res = wrapper
     ///     .default_request()
-    ///     .drop_section(true, "123456")
+    ///     .drop_section(ExplicitAddType::Enroll, "123456")
     ///     .await;
     ///
     /// match drop_res {
@@ -1088,13 +1146,12 @@ impl<'a> WrapperTermRequest<'a> {
     /// ```
     pub async fn drop_section(
         &self,
-        was_enrolled: bool,
+        prev_enroll_status: ExplicitAddType,
         section_id: impl AsRef<str>,
     ) -> types::Result<bool> {
-        let base_reg_url = if was_enrolled {
-            ENROLL_DROP
-        } else {
-            WAILIST_DROP
+        let base_reg_url = match prev_enroll_status {
+            ExplicitAddType::Enroll => ENROLL_DROP,
+            ExplicitAddType::Waitlist => WAITLIST_DROP,
         };
 
         process_post_response(
