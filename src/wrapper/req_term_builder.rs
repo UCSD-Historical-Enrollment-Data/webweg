@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use reqwest::header::{COOKIE, USER_AGENT};
-use reqwest::{Client, RequestBuilder};
+use reqwest::{Client, IntoUrl, RequestBuilder};
 use url::Url;
 
 use crate::raw_types::{
@@ -154,16 +154,8 @@ impl<'a> WrapperTermRequest<'a> {
         )?;
 
         parse_prerequisites(
-            process_get_result::<Vec<RawPrerequisite>>(
-                self.info
-                    .client
-                    .get(url)
-                    .header(COOKIE, self.info.cookies)
-                    .header(USER_AGENT, self.info.user_agent)
-                    .send()
-                    .await,
-            )
-            .await?,
+            process_get_result::<Vec<RawPrerequisite>>(self.init_get_request(url).send().await)
+                .await?,
         )
     }
 
@@ -238,16 +230,8 @@ impl<'a> WrapperTermRequest<'a> {
         )?;
 
         parse_schedule(
-            process_get_result::<Vec<RawScheduledMeeting>>(
-                self.info
-                    .client
-                    .get(url)
-                    .header(COOKIE, self.info.cookies)
-                    .header(USER_AGENT, self.info.user_agent)
-                    .send()
-                    .await,
-            )
-            .await?,
+            process_get_result::<Vec<RawScheduledMeeting>>(self.init_get_request(url).send().await)
+                .await?,
         )
     }
 
@@ -502,12 +486,8 @@ impl<'a> WrapperTermRequest<'a> {
     /// ```
     pub async fn send_email_to_self(&self, email_content: &str) -> types::Result<()> {
         let r = self
-            .info
-            .client
-            .post(SEND_EMAIL)
+            .init_post_request(SEND_EMAIL)
             .form(&[("actionevent", email_content), ("termcode", self.info.term)])
-            .header(COOKIE, self.info.cookies)
-            .header(USER_AGENT, self.info.user_agent)
             .send()
             .await?;
 
@@ -610,9 +590,7 @@ impl<'a> WrapperTermRequest<'a> {
         let units = poss_class.units.to_string();
 
         process_post_response(
-            self.info
-                .client
-                .post(CHANGE_ENROLL)
+            self.init_post_request(CHANGE_ENROLL)
                 .form(&[
                     ("section", sec_id.as_str()),
                     ("subjCode", ""),
@@ -624,8 +602,6 @@ impl<'a> WrapperTermRequest<'a> {
                     ("oldUnit", ""),
                     ("termcode", self.info.term),
                 ])
-                .header(COOKIE, self.info.cookies)
-                .header(USER_AGENT, self.info.user_agent)
                 .send()
                 .await,
         )
@@ -682,17 +658,13 @@ impl<'a> WrapperTermRequest<'a> {
     pub async fn validate_add_to_plan(&self, plan_options: &PlanAdd<'_>) -> types::Result<bool> {
         let crsc_code = util::get_formatted_course_num(plan_options.course_code);
         process_post_response(
-            self.info
-                .client
-                .post(PLAN_EDIT)
+            self.init_post_request(PLAN_EDIT)
                 .form(&[
                     ("section", plan_options.section_id),
                     ("subjcode", plan_options.subject_code),
                     ("crsecode", crsc_code.as_str()),
                     ("termcode", self.info.term),
                 ])
-                .header(COOKIE, self.info.cookies)
-                .header(USER_AGENT, self.info.user_agent)
                 .send()
                 .await,
         )
@@ -772,9 +744,7 @@ impl<'a> WrapperTermRequest<'a> {
         }
 
         process_post_response(
-            self.info
-                .client
-                .post(PLAN_ADD)
+            self.init_post_request(PLAN_ADD)
                 .form(&[
                     ("subjcode", plan_options.subject_code),
                     ("crsecode", crsc_code.as_str()),
@@ -797,8 +767,6 @@ impl<'a> WrapperTermRequest<'a> {
                         },
                     ),
                 ])
-                .header(COOKIE, self.info.cookies)
-                .header(USER_AGENT, self.info.user_agent)
                 .send()
                 .await,
         )
@@ -845,16 +813,12 @@ impl<'a> WrapperTermRequest<'a> {
         schedule_name: Option<&str>,
     ) -> types::Result<bool> {
         process_post_response(
-            self.info
-                .client
-                .post(PLAN_REMOVE)
+            self.init_post_request(PLAN_REMOVE)
                 .form(&[
                     ("sectnum", section_id.as_ref()),
                     ("termcode", self.info.term),
                     ("schedname", schedule_name.unwrap_or(DEFAULT_SCHEDULE_NAME)),
                 ])
-                .header(COOKIE, self.info.cookies)
-                .header(USER_AGENT, self.info.user_agent)
                 .send()
                 .await,
         )
@@ -921,9 +885,7 @@ impl<'a> WrapperTermRequest<'a> {
         };
 
         process_post_response(
-            self.info
-                .client
-                .post(base_edit_url)
+            self.init_post_request(base_edit_url)
                 .form(&[
                     // These are required
                     ("section", enroll_options.section_id),
@@ -932,8 +894,6 @@ impl<'a> WrapperTermRequest<'a> {
                     ("subjcode", ""),
                     ("crsecode", ""),
                 ])
-                .header(COOKIE, self.info.cookies)
-                .header(USER_AGENT, self.info.user_agent)
                 .send()
                 .await,
         )
@@ -1060,9 +1020,7 @@ impl<'a> WrapperTermRequest<'a> {
         }
 
         process_post_response(
-            self.info
-                .client
-                .post(base_reg_url)
+            self.init_post_request(base_reg_url)
                 .form(&[
                     // These are required
                     ("section", enroll_options.section_id),
@@ -1079,8 +1037,6 @@ impl<'a> WrapperTermRequest<'a> {
                     ("crsecode", ""),
                     ("subjcode", ""),
                 ])
-                .header(COOKIE, self.info.cookies)
-                .header(USER_AGENT, self.info.user_agent)
                 .send()
                 .await,
         )
@@ -1088,15 +1044,11 @@ impl<'a> WrapperTermRequest<'a> {
 
         // This will always return true
         process_post_response(
-            self.info
-                .client
-                .post(PLAN_REMOVE_ALL)
+            self.init_post_request(PLAN_REMOVE_ALL)
                 .form(&[
                     ("sectnum", enroll_options.section_id),
                     ("termcode", self.info.term),
                 ])
-                .header(COOKIE, self.info.cookies)
-                .header(USER_AGENT, self.info.user_agent)
                 .send()
                 .await,
         )
@@ -1155,9 +1107,7 @@ impl<'a> WrapperTermRequest<'a> {
         };
 
         process_post_response(
-            self.info
-                .client
-                .post(base_reg_url)
+            self.init_post_request(base_reg_url)
                 .form(&[
                     // These parameters are optional
                     ("subjcode", ""),
@@ -1166,8 +1116,6 @@ impl<'a> WrapperTermRequest<'a> {
                     ("section", section_id.as_ref()),
                     ("termcode", self.info.term),
                 ])
-                .header(COOKIE, self.info.cookies)
-                .header(USER_AGENT, self.info.user_agent)
                 .send()
                 .await,
         )
@@ -1233,16 +1181,12 @@ impl<'a> WrapperTermRequest<'a> {
         }
 
         process_post_response(
-            self.info
-                .client
-                .post(RENAME_SCHEDULE)
+            self.init_post_request(RENAME_SCHEDULE)
                 .form(&[
                     ("termcode", self.info.term),
                     ("oldschedname", old_name.as_ref()),
                     ("newschedname", new_name.as_ref()),
                 ])
-                .header(COOKIE, self.info.cookies)
-                .header(USER_AGENT, self.info.user_agent)
                 .send()
                 .await,
         )
@@ -1298,15 +1242,11 @@ impl<'a> WrapperTermRequest<'a> {
         }
 
         process_post_response(
-            self.info
-                .client
-                .post(REMOVE_SCHEDULE)
+            self.init_post_request(REMOVE_SCHEDULE)
                 .form(&[
                     ("termcode", self.info.term),
                     ("schedname", schedule_name.as_ref()),
                 ])
-                .header(COOKIE, self.info.cookies)
-                .header(USER_AGENT, self.info.user_agent)
                 .send()
                 .await,
         )
@@ -1314,6 +1254,9 @@ impl<'a> WrapperTermRequest<'a> {
     }
 
     /// Adds an event to your WebReg calendar, or edits an existing event.
+    ///
+    /// Keep in mind that if you edit an event, WebReg effectively just removes
+    /// the old event and then adds the new event, so the timestamp will change.
     ///
     /// # Parameter
     /// - `event_info`: The details of the event.
@@ -1462,17 +1405,13 @@ impl<'a> WrapperTermRequest<'a> {
         }
 
         process_post_response(
-            self.info
-                .client
-                .post(match et {
-                    Some(_) => EVENT_EDIT,
-                    None => EVENT_ADD,
-                })
-                .form(&form_data)
-                .header(COOKIE, self.info.cookies)
-                .header(USER_AGENT, self.info.user_agent)
-                .send()
-                .await,
+            self.init_post_request(match et {
+                Some(_) => EVENT_EDIT,
+                None => EVENT_ADD,
+            })
+            .form(&form_data)
+            .send()
+            .await,
         )
         .await
     }
@@ -1512,15 +1451,11 @@ impl<'a> WrapperTermRequest<'a> {
     /// ```
     pub async fn remove_event(&self, event_timestamp: impl AsRef<str>) -> types::Result<bool> {
         process_post_response(
-            self.info
-                .client
-                .post(EVENT_REMOVE)
+            self.init_post_request(EVENT_REMOVE)
                 .form(&[
                     ("aetimestamp", event_timestamp.as_ref()),
                     ("termcode", self.info.term),
                 ])
-                .header(COOKIE, self.info.cookies)
-                .header(USER_AGENT, self.info.user_agent)
                 .send()
                 .await,
         )
@@ -1581,11 +1516,34 @@ impl<'a> WrapperTermRequest<'a> {
     ///
     /// # Returns
     /// The GET `RequestBuilder`.
-    fn init_get_request(&self, url: Url) -> RequestBuilder {
+    fn init_get_request<U>(&self, url: U) -> RequestBuilder
+    where
+        U: IntoUrl,
+    {
         self.info
             .client
             .get(url)
             .header(COOKIE, self.info.cookies)
             .header(USER_AGENT, self.info.user_agent)
+            .timeout(self.info.timeout)
+    }
+
+    /// Initializes a POST `RequestBuilder` with the cookies and user agent specified.
+    ///
+    /// # Parameters
+    /// - `url`: The URL to make the request for.
+    ///
+    /// # Returns
+    /// The GET `RequestBuilder`.
+    fn init_post_request<U>(&self, url: U) -> RequestBuilder
+    where
+        U: IntoUrl,
+    {
+        self.info
+            .client
+            .post(url)
+            .header(COOKIE, self.info.cookies)
+            .header(USER_AGENT, self.info.user_agent)
+            .timeout(self.info.timeout)
     }
 }
