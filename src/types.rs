@@ -57,14 +57,14 @@ impl Display for CourseSection {
             self.section_code, self.section_id, self.subj_course_id
         )?;
         writeln!(f, "\tInstructors: [{}]", self.all_instructors.join(", "))?;
-        writeln!(f, "\tEnrolled: {}", self.available_seats)?;
+        writeln!(f, "\tEnrolled: {}", self.enrolled_ct)?;
         writeln!(f, "\tAvailable: {}", self.available_seats)?;
         writeln!(f, "\tWaitlist: {}", self.waitlist_ct)?;
         writeln!(f, "\tTotal Seats: {}", self.total_seats)?;
         writeln!(f, "\tCan Enroll? {}", self.has_seats())?;
         writeln!(f, "\tMeeting Information:")?;
         for meeting in &self.meetings {
-            writeln!(f, "\t\t{meeting}")?;
+            write!(f, "\t\t{meeting}")?;
         }
 
         Ok(())
@@ -180,7 +180,7 @@ impl Display for ScheduledSection {
         )?;
         writeln!(f, "\tInstructors: [{}]", self.all_instructors.join(", "))?;
         writeln!(f, "\tCourse Enrollment Information:")?;
-        writeln!(f, "\t\tEnrolled: {}", self.available_seats)?;
+        writeln!(f, "\t\tEnrolled: {}", self.enrolled_count)?;
         writeln!(f, "\t\tAvailable: {}", self.available_seats)?;
         writeln!(f, "\t\tWaitlist: {}", self.waitlist_ct)?;
         writeln!(f, "\t\tTotal Seats: {}", self.section_capacity)?;
@@ -199,7 +199,7 @@ impl Display for ScheduledSection {
         writeln!(f, "\t\tGrade Option: {}", self.grade_option)?;
         writeln!(f, "\tMeeting Information:")?;
         for meeting in &self.meetings {
-            writeln!(f, "\t\t{meeting}")?;
+            write!(f, "\t\t{meeting}")?;
         }
 
         Ok(())
