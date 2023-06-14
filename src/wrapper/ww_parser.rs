@@ -245,7 +245,7 @@ pub fn parse_schedule(res: Vec<RawScheduledMeeting>) -> types::Result<Vec<Schedu
     }
 
     // Now, we look into parsing the special sections. This is trivial to parse.
-    // TODO: See if these sections have more than one meeting.
+    // Note: we're making the assumption that these sections have one meeting.
     for (_, sch_meetings) in special_classes {
         let day_code = sch_meetings
             .iter()
@@ -751,6 +751,13 @@ pub(crate) fn build_search_course_url(filter_by: SearchType<'_>, term: &str) -> 
     })
 }
 
+/// Parses events from the vector of raw events.
+///
+/// # Parameters
+/// - `raw_events`: The raw events.
+///
+/// # Returns
+/// The parsed events.
 pub(crate) fn parse_get_events(raw_events: Vec<RawEvent>) -> types::Result<Vec<Event>> {
     let mut res = vec![];
     for event in raw_events {

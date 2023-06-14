@@ -126,7 +126,7 @@ impl Display for Meeting {
             "at {}:{:02} - {}:{:02} ",
             self.start_hr, self.start_min, self.end_hr, self.end_min
         )?;
-        write!(f, "in {} {}", self.building, self.room)?;
+        writeln!(f, "in {} {}", self.building, self.room)?;
 
         Ok(())
     }
@@ -264,8 +264,23 @@ pub struct Event {
     pub name: String,
     /// The days that this event will occur.
     pub days: Vec<String>,
-    /// The time when this event was created.
+    /// The time when this event was created. Use this to replace or delete an event.
     pub timestamp: String,
+}
+
+impl Display for Event {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "[Event] {}", self.name)?;
+        writeln!(f, "\tLocation: {}", self.location)?;
+        writeln!(f, "\tDay of Week: {}", self.days.join(""))?;
+        writeln!(
+            f,
+            "\tTime: {}:{:02} - {}:{:02}",
+            self.start_hr, self.start_min, self.end_hr, self.end_min
+        )?;
+        writeln!(f, "\tTimestamp: {}", self.timestamp)?;
+        Ok(())
+    }
 }
 
 // Helper structure for organizing meetings. Only used once for now.
@@ -368,6 +383,20 @@ pub enum GradeOption {
 
     /// Letter grading option.
     L,
+}
+
+impl GradeOption {
+    /// Gets the (static) string representation of this `enum`.
+    ///
+    /// # Returns
+    /// The static string representation.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            GradeOption::L => "L",
+            GradeOption::S => "S",
+            GradeOption::P => "P",
+        }
+    }
 }
 
 #[derive(Error, Debug)]

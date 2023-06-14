@@ -49,7 +49,7 @@ pub(crate) async fn process_post_response(res: Result<Response, Error>) -> types
     let text = r.text().await?;
     // Unwrap should not be a problem since we should be getting a valid JSON response
     // every time.
-    let json: Value = serde_json::from_str(&text).unwrap();
+    let json: Value = serde_json::from_str(&text)?;
     if json["OPS"].is_string() && json["OPS"].as_str().unwrap() == "SUCCESS" {
         return Ok(true);
     }
