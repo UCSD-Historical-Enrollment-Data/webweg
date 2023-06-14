@@ -1,8 +1,9 @@
-use std::borrow::Cow;
+use std::fmt::{Display, Formatter};
 
-use crate::wrapper::search::DayOfWeek;
 use serde::Serialize;
 use thiserror::Error;
+
+use crate::wrapper::search::DayOfWeek;
 
 /// A section, which consists of a lecture, usually a discussion, and usually a final.
 #[derive(Debug, Clone, Serialize)]
@@ -48,27 +49,25 @@ impl CourseSection {
     }
 }
 
-impl ToString for CourseSection {
-    fn to_string(&self) -> String {
-        let mut s = format!(
-            "[{}] [{} / {}] {} - Avail.: {}, Enroll.: {}, Total: {} (WL: {}) [{}]\n",
-            self.subj_course_id,
-            self.section_code,
-            self.section_id,
-            self.all_instructors.join(" & "),
-            self.available_seats,
-            self.enrolled_ct,
-            self.total_seats,
-            self.waitlist_ct,
-            if self.has_seats() { "E" } else { "W" }
-        );
-
+impl Display for CourseSection {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "[{} / {}] {}",
+            self.section_code, self.section_id, self.subj_course_id
+        )?;
+        writeln!(f, "\tInstructors: [{}]", self.all_instructors.join(", "))?;
+        writeln!(f, "\tEnrolled: {}", self.available_seats)?;
+        writeln!(f, "\tAvailable: {}", self.available_seats)?;
+        writeln!(f, "\tWaitlist: {}", self.waitlist_ct)?;
+        writeln!(f, "\tTotal Seats: {}", self.total_seats)?;
+        writeln!(f, "\tCan Enroll? {}", self.has_seats())?;
+        writeln!(f, "\tMeeting Information:")?;
         for meeting in &self.meetings {
-            s.push_str(&meeting.to_string());
-            s.push('\n');
+            writeln!(f, "\t\t{meeting}")?;
         }
 
-        s
+        Ok(())
     }
 }
 
@@ -113,65 +112,23 @@ pub enum MeetingDay {
     None,
 }
 
-impl Meeting {
-    /// Returns a flat string representation of this `Meeting`. One example of a flat string might
-    /// look like
-    /// ```txt
-    /// MWF LE 13:00 - 13:50 CENTR 115 .. OTHER_INSTRUCTOR_1 & ... & OTHER_INSTRUCTOR_n
-    /// ```
-    ///
-    /// This flat string is generally useful when needing to store meeting data in a CSV or TSV
-    /// file.
-    ///
-    /// # Returns
-    /// A flat string representation of this `Meeting`. Useful for CSV files.
-    pub fn to_flat_str(&self) -> String {
-        let mut s = String::new();
-        s.push_str(&match &self.meeting_days {
-            MeetingDay::Repeated(r) => r.join(""),
-            MeetingDay::OneTime(r) => r.to_string(),
-            MeetingDay::None => "N/A".to_string(),
-        });
+impl Display for Meeting {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}] ", self.meeting_type)?;
+        match &self.meeting_days {
+            MeetingDay::Repeated(r) => write!(f, "{} ", r.join("")),
+            MeetingDay::OneTime(r) => write!(f, "{} ", r),
+            MeetingDay::None => write!(f, "N/A "),
+        }?;
 
-        s.push(' ');
-        s.push_str(self.meeting_type.as_str());
-        s.push(' ');
-        s.push_str(&format!(
-            "{}:{:02}-{}:{:02}",
+        write!(
+            f,
+            "at {}:{:02} - {}:{:02} ",
             self.start_hr, self.start_min, self.end_hr, self.end_min
-        ));
+        )?;
+        write!(f, "in {} {}", self.building, self.room)?;
 
-        s.push(' ');
-        s.push_str(&format!("{} {}", self.building, self.room));
-
-        s.push_str("..");
-        s.push_str(&self.instructors.join(" & "));
-
-        s
-    }
-}
-
-impl ToString for Meeting {
-    fn to_string(&self) -> String {
-        let meeting_days_display: Cow<'_, str> = match &self.meeting_days {
-            MeetingDay::Repeated(r) => r.join("").into(),
-            MeetingDay::OneTime(r) => r.into(),
-            MeetingDay::None => "N/A".into(),
-        };
-
-        let time_range = format!(
-            "{}:{:02} - {}:{:02}",
-            self.start_hr, self.start_min, self.end_hr, self.end_min
-        );
-        format!(
-            "\t[{}] {} at {} in {} {} [{}]",
-            self.meeting_type,
-            meeting_days_display,
-            time_range,
-            self.building,
-            self.room,
-            self.instructors.join(" & ")
-        )
+        Ok(())
     }
 }
 
@@ -210,39 +167,42 @@ pub struct ScheduledSection {
     pub meetings: Vec<Meeting>,
 }
 
-impl ToString for ScheduledSection {
-    fn to_string(&self) -> String {
-        let status: Cow<'_, str> = match self.enrolled_status {
-            EnrollmentStatus::Enrolled => "Enrolled".into(),
-            EnrollmentStatus::Waitlist { waitlist_pos } => {
-                format!("Waitlisted {}/{}", waitlist_pos, self.waitlist_ct).into()
-            }
-            EnrollmentStatus::Planned => "Planned".into(),
-            EnrollmentStatus::Unknown => "Unknown".into(),
-        };
-
-        let mut s = format!(
-            "[{} / {}] {} ({} {}) with {} - {} ({} Units, {} Grading, Avail.: {}, Enroll.: {}, Total: {})\n",
+impl Display for ScheduledSection {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "[{} / {}] {} {}: {}",
             self.section_code,
             self.section_id,
-            self.course_title,
-            self.subject_code,
+            self.section_code,
             self.course_code,
-            self.all_instructors.join(" & "),
-            status,
-            self.units,
-            self.grade_option,
-            self.available_seats,
-            self.enrolled_count,
-            self.section_capacity
-        );
+            self.course_title
+        )?;
+        writeln!(f, "\tInstructors: [{}]", self.all_instructors.join(", "))?;
+        writeln!(f, "\tCourse Enrollment Information:")?;
+        writeln!(f, "\t\tEnrolled: {}", self.available_seats)?;
+        writeln!(f, "\t\tAvailable: {}", self.available_seats)?;
+        writeln!(f, "\t\tWaitlist: {}", self.waitlist_ct)?;
+        writeln!(f, "\t\tTotal Seats: {}", self.section_capacity)?;
+        writeln!(f, "\tEnrollment Information:")?;
+        write!(f, "\t\tStatus: ")?;
+        match self.enrolled_status {
+            EnrollmentStatus::Enrolled => writeln!(f, "Enrolled"),
+            EnrollmentStatus::Waitlist { waitlist_pos } => {
+                writeln!(f, "Waitlisted (Position {waitlist_pos})")
+            }
+            EnrollmentStatus::Planned => writeln!(f, "Planned"),
+            EnrollmentStatus::Unknown => writeln!(f, "Unknown"),
+        }?;
 
+        writeln!(f, "\t\tUnits: {}", self.units)?;
+        writeln!(f, "\t\tGrade Option: {}", self.grade_option)?;
+        writeln!(f, "\tMeeting Information:")?;
         for meeting in &self.meetings {
-            s.push_str(&meeting.to_string());
-            s.push('\n');
+            writeln!(f, "\t\t{meeting}")?;
         }
 
-        s
+        Ok(())
     }
 }
 
