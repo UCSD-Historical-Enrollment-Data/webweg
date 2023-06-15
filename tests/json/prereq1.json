@@ -1,0 +1,18 @@
+[
+  {
+    "SUBJECT_CODE": "CSE ",
+    "PREREQ_SEQ_ID": "1",
+    "CRSE_TITLE": "Intro to Programming 2        ",
+    "COURSE_CODE": "  8B ",
+    "GRADE_SEQ_ID": "600",
+    "TYPE": "COURSE"
+  },
+  {
+    "SUBJECT_CODE": "CSE ",
+    "PREREQ_SEQ_ID": "1",
+    "CRSE_TITLE": "Accel. Intro to Programming   ",
+    "COURSE_CODE": " 11  ",
+    "GRADE_SEQ_ID": "600",
+    "TYPE": "COURSE"
+  }
+]

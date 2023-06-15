@@ -1,0 +1,74 @@
+[
+  {
+    "SUBJECT_CODE": "CSE ",
+    "PREREQ_SEQ_ID": "1",
+    "CRSE_TITLE": "Math/Algorithm&Systems Analys ",
+    "COURSE_CODE": " 21  ",
+    "GRADE_SEQ_ID": "600",
+    "TYPE": "COURSE"
+  },
+  {
+    "SUBJECT_CODE": "MATH",
+    "PREREQ_SEQ_ID": "1",
+    "CRSE_TITLE": "Discrete Math & Graph Theory  ",
+    "COURSE_CODE": "154  ",
+    "GRADE_SEQ_ID": "600",
+    "TYPE": "COURSE"
+  },
+  {
+    "SUBJECT_CODE": "MATH",
+    "PREREQ_SEQ_ID": "1",
+    "CRSE_TITLE": "Extremal Combinatorics/Graph  ",
+    "COURSE_CODE": "158  ",
+    "GRADE_SEQ_ID": "600",
+    "TYPE": "COURSE"
+  },
+  {
+    "SUBJECT_CODE": "MATH",
+    "PREREQ_SEQ_ID": "1",
+    "CRSE_TITLE": "Enumerative Combinatorics     ",
+    "COURSE_CODE": "184  ",
+    "GRADE_SEQ_ID": "600",
+    "TYPE": "COURSE"
+  },
+  {
+    "SUBJECT_CODE": "MATH",
+    "PREREQ_SEQ_ID": "1",
+    "CRSE_TITLE": "Algebraic Combinatorics       ",
+    "COURSE_CODE": "188  ",
+    "GRADE_SEQ_ID": "600",
+    "TYPE": "COURSE"
+  },
+  {
+    "SUBJECT_CODE": "CSE ",
+    "PREREQ_SEQ_ID": "2",
+    "CRSE_TITLE": "Basic Data Struct & OO Design ",
+    "COURSE_CODE": " 12  ",
+    "GRADE_SEQ_ID": "600",
+    "TYPE": "COURSE"
+  },
+  {
+    "SUBJECT_CODE": "CSE ",
+    "PREREQ_SEQ_ID": "3",
+    "CRSE_TITLE": "Software Tools&Techniques Lab ",
+    "COURSE_CODE": " 15L ",
+    "GRADE_SEQ_ID": "600",
+    "TYPE": "COURSE"
+  },
+  {
+    "SUBJECT_CODE": "CSE ",
+    "PREREQ_SEQ_ID": "4",
+    "CRSE_TITLE": "Computer Organiz&Systms Progrm",
+    "COURSE_CODE": " 30  ",
+    "GRADE_SEQ_ID": "600",
+    "TYPE": "COURSE"
+  },
+  {
+    "SUBJECT_CODE": "ECE ",
+    "PREREQ_SEQ_ID": "4",
+    "CRSE_TITLE": "Engineering Computation       ",
+    "COURSE_CODE": " 15  ",
+    "GRADE_SEQ_ID": "600",
+    "TYPE": "COURSE"
+  }
+]

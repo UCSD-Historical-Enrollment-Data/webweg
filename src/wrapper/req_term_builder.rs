@@ -243,6 +243,8 @@ impl<'a> WrapperTermRequest<'a> {
     ///
     /// Additionally, this function only returns one of some number of possible instructors.
     ///
+    /// Also keep in mind that this implementation will not retrieve canceled sections.
+    ///
     /// If you want full course information, use `get_course_info`. If you only care about the
     /// number of people enrolled in a section, this function is for you.
     ///
@@ -317,6 +319,8 @@ impl<'a> WrapperTermRequest<'a> {
     /// particular, WebReg separates each lecture, discussion, final exam, etc. from each other.
     /// This function attempts to figure out which lecture/discussion/final exam/etc. correspond
     /// to which section.
+    ///
+    /// Additonally, this implementation will not retrieve canceled sections.
     ///
     /// # Parameters
     /// - `subject_code`: The subject code. For example, if you wanted to check `MATH 100B`, you

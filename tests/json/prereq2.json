@@ -1,0 +1,18 @@
+[
+  {
+    "SUBJECT_CODE": "CSE ",
+    "PREREQ_SEQ_ID": "1",
+    "CRSE_TITLE": "Basic Data Struct & OO Design ",
+    "COURSE_CODE": " 12  ",
+    "GRADE_SEQ_ID": "600",
+    "TYPE": "COURSE"
+  },
+  {
+    "SUBJECT_CODE": "CSE ",
+    "PREREQ_SEQ_ID": "2",
+    "CRSE_TITLE": "Software Tools&Techniques Lab ",
+    "COURSE_CODE": " 15L ",
+    "GRADE_SEQ_ID": "600",
+    "TYPE": "COURSE"
+  }
+]

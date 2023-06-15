@@ -227,8 +227,8 @@ pub fn parse_schedule(res: Vec<RawScheduledMeeting>) -> types::Result<Vec<Schedu
                     section_capacity,
                     enrolled_count,
                     available_seats: max(section_capacity - enrolled_count, 0),
-                    grade_option: data.grade_option.trim().to_string(),
-                    units: data.sect_credit_hrs,
+                    grade_option: data.grade_option.to_string(),
+                    units: data.sect_credit_hrs.trunc() as i64,
                     enrolled_status: match data.enroll_status.as_str() {
                         STATUS_ENROLL => EnrollmentStatus::Enrolled,
                         STATUS_WAITLIST => EnrollmentStatus::Waitlist {
@@ -277,7 +277,7 @@ pub fn parse_schedule(res: Vec<RawScheduledMeeting>) -> types::Result<Vec<Schedu
             enrolled_count,
             available_seats: max(section_capacity - enrolled_count, 0),
             grade_option: sch_meetings[0].grade_option.trim().to_string(),
-            units: sch_meetings[0].sect_credit_hrs,
+            units: sch_meetings[0].sect_credit_hrs.trunc() as i64,
             enrolled_status: match sch_meetings[0].enroll_status.as_str() {
                 STATUS_ENROLL => EnrollmentStatus::Enrolled,
                 STATUS_WAITLIST => EnrollmentStatus::Waitlist {
@@ -359,7 +359,6 @@ pub fn parse_enrollment_count(
             total_seats: x.section_capacity,
             waitlist_ct: x.count_on_waitlist,
             meetings: vec![],
-            needs_waitlist: x.needs_waitlist == "Y",
         })
         .collect())
 }
@@ -433,7 +432,6 @@ pub fn parse_course_info(
                 enrolled_ct: meeting.enrolled_count,
                 total_seats: meeting.section_capacity,
                 waitlist_ct: meeting.count_on_waitlist,
-                needs_waitlist: meeting.needs_waitlist == "Y",
                 meetings: vec![Meeting {
                     start_hr: meeting.start_time_hr,
                     start_min: meeting.start_time_min,
@@ -584,7 +582,6 @@ pub fn parse_course_info(
                 total_seats: entry.general_meetings[0].section_capacity,
                 waitlist_ct: entry.general_meetings[0].count_on_waitlist,
                 meetings: vec![],
-                needs_waitlist: entry.general_meetings[0].needs_waitlist == "Y",
             };
 
             // Then, iterate through the rest of the general meetings.
@@ -614,7 +611,6 @@ pub fn parse_course_info(
                 total_seats: c_meeting.section_capacity,
                 waitlist_ct: c_meeting.count_on_waitlist,
                 meetings: vec![],
-                needs_waitlist: c_meeting.needs_waitlist == "Y",
             };
 
             // Iterate through the general and child meetings.

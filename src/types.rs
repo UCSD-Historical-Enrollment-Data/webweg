@@ -6,7 +6,7 @@ use thiserror::Error;
 use crate::wrapper::search::DayOfWeek;
 
 /// A section, which consists of a lecture, usually a discussion, and usually a final.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub struct CourseSection {
     /// The subject, course ID. For example, `CSE 100`.
     pub subj_course_id: String,
@@ -29,8 +29,6 @@ pub struct CourseSection {
     pub waitlist_ct: i64,
     /// All meetings.
     pub meetings: Vec<Meeting>,
-    /// Whether you need to waitlist this.
-    pub needs_waitlist: bool,
     /// Whether this is visible on WebReg
     pub is_visible: bool,
 }
@@ -72,7 +70,7 @@ impl Display for CourseSection {
 }
 
 /// A meeting. Usually represents a lecture, final exam, discussion, and more.
-#[derive(Debug, Clone, Serialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub struct Meeting {
     /// The meeting type. For example, this can be `LE`, `FI`, `DI`, etc.
     pub meeting_type: String,
@@ -99,7 +97,7 @@ pub struct Meeting {
 }
 
 /// An enum that represents the meeting days for a section meeting.
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum MeetingDay {
     /// The meeting is repeated. In this case, each element in the vector will be one of the
@@ -134,7 +132,7 @@ impl Display for Meeting {
 
 /// A section that is currently in your schedule. Note that this can either be a course that you
 /// are enrolled in, waitlisted for, or planned.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub struct ScheduledSection {
     /// The section ID, for example `79903`.
     pub section_id: String,
@@ -157,7 +155,7 @@ pub struct ScheduledSection {
     /// All instructors that appear in all of the meetings.
     pub all_instructors: Vec<String>,
     /// The number of units that you are taking this course for.
-    pub units: f32,
+    pub units: i64,
     /// Your enrollment status.
     #[serde(rename = "enrolled_status")]
     pub enrolled_status: EnrollmentStatus,
@@ -207,7 +205,7 @@ impl Display for ScheduledSection {
 }
 
 /// An enum that represents your enrollment status.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 #[serde(tag = "enroll_status")]
 pub enum EnrollmentStatus {
     Enrolled,
@@ -217,7 +215,7 @@ pub enum EnrollmentStatus {
 }
 
 /// A prerequisite for a course.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub struct PrerequisiteInfo {
     /// Any course prerequsiites. This is a vector of vector of prerequisites,
     /// where each vector contains one or more prerequisites. Any prerequisites
@@ -238,7 +236,7 @@ pub struct PrerequisiteInfo {
 }
 
 /// A course prerequisite.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub struct CoursePrerequisite {
     /// The subject, course ID. For example, `CSE 100`.
     pub subj_course_id: String,
@@ -247,8 +245,28 @@ pub struct CoursePrerequisite {
     pub course_title: String,
 }
 
+impl CoursePrerequisite {
+    /// Creates a new `CoursePrerequisite` object with the specified course information.
+    ///
+    /// # Parameters
+    /// - `subj_course_id`: The subject, course ID (e.g., `CSE 100`)
+    /// - `course_title`: The course title (e.g., `Advanced Data Structures`).
+    ///
+    /// # Returns
+    /// The new `CoursePrerequisite` object.
+    pub fn new<S>(subj_course_id: S, course_title: S) -> Self
+    where
+        S: Into<String>,
+    {
+        Self {
+            subj_course_id: subj_course_id.into(),
+            course_title: course_title.into(),
+        }
+    }
+}
+
 /// An event on WebReg.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Eq, PartialEq, Hash)]
 pub struct Event {
     /// The location of the event.
     pub location: String,
