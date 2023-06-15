@@ -7,8 +7,8 @@ use crate::raw_types::{
     RawCoursePrerequisite, RawEvent, RawPrerequisite, RawScheduledMeeting, RawWebRegMeeting,
 };
 use crate::types::{
-    CoursePrerequisite, CourseSection, EnrollmentStatus, Event, GroupedSection, Meeting,
-    MeetingDay, PrerequisiteInfo, ScheduledSection, WrapperError,
+    CoursePrerequisite, CourseSection, EnrollmentStatus, Event, Meeting, MeetingDay,
+    PrerequisiteInfo, ScheduledSection, WrapperError,
 };
 use crate::util::parse_binary_days;
 use crate::wrapper::constants::*;
@@ -455,6 +455,16 @@ pub fn parse_course_info(
     // If there is nothing left to process, then we're done!
     if unprocessed_meetings.is_empty() {
         return Ok(sections);
+    }
+
+    struct GroupedSection<'a, T> {
+        /// All general meetings. These include meetings that are consistent across *all* sections.
+        /// For example, lectures and final exams.
+        pub general_meetings: Vec<&'a T>,
+
+        /// All unique meetings. These are generally meetings that are unique the one section.
+        /// For example, discussions.
+        pub child_meetings: Vec<&'a T>,
     }
 
     // Otherwise, we need to deal with non-special meetings. Remember that these are all

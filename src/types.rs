@@ -301,18 +301,6 @@ impl Display for Event {
     }
 }
 
-// Helper structure for organizing meetings. Only used once for now.
-#[derive(Debug)]
-pub(crate) struct GroupedSection<'a, T> {
-    /// All general meetings. These include meetings that are consistent across *all* sections.
-    /// For example, lectures and final exams.
-    pub general_meetings: Vec<&'a T>,
-
-    /// All unique meetings. These are generally meetings that are unique the one section.
-    /// For example, discussions.
-    pub child_meetings: Vec<&'a T>,
-}
-
 /// Use this struct to add more information regarding the section that you want to enroll/waitlist
 /// in.
 pub struct EnrollWaitAdd<'a> {
