@@ -1,8 +1,7 @@
 use std::collections::HashMap;
-use std::time::Duration;
 
 use reqwest::header::{COOKIE, USER_AGENT};
-use reqwest::{Client, IntoUrl, RequestBuilder};
+use reqwest::{IntoUrl, RequestBuilder};
 use url::Url;
 
 use crate::raw_types::{
@@ -19,66 +18,223 @@ use crate::wrapper::constants::{
     PLAN_EDIT, PLAN_REMOVE, PLAN_REMOVE_ALL, PREREQS_INFO, REMOVE_SCHEDULE, RENAME_SCHEDULE,
     SEND_EMAIL, SUBJ_LIST, WAITLIST_ADD, WAITLIST_DROP, WAITLIST_EDIT,
 };
+use crate::wrapper::request_builder::WrapperTermRequestBuilder;
 use crate::wrapper::search::{DayOfWeek, SearchType};
-use crate::wrapper::ww_helper::{process_get_result, process_post_response};
+use crate::wrapper::ww_helper::{extract_text, process_get_text, process_post_response};
 use crate::wrapper::ww_parser::{
     build_search_course_url, parse_course_info, parse_enrollment_count, parse_get_events,
     parse_prerequisites, parse_schedule,
 };
-use crate::wrapper::WebRegWrapper;
 use crate::{types, util};
 
-pub struct WrapperTermRequestBuilder<'a> {
-    cookies: &'a str,
-    client: &'a Client,
-    term: &'a str,
-    user_agent: &'a str,
-    timeout: Duration,
+/// A structure that can be used to get raw data from WebReg, with minimal error handling.
+///
+/// Keep in mind that this structure only gives you some API access, as these APIs give you
+/// interesting data. For full access, consider using `WrapperTermRequest`.
+pub struct WrapperTermRawRequest<'a> {
+    pub(crate) info: WrapperTermRequestBuilder<'a>,
 }
 
-impl<'a> WrapperTermRequestBuilder<'a> {
-    pub fn new_request(wrapper: &'a WebRegWrapper) -> Self {
-        Self {
-            cookies: &wrapper.cookies,
-            client: &wrapper.client,
-            term: &wrapper.term,
-            user_agent: &wrapper.user_agent,
-            timeout: wrapper.default_timeout,
-        }
+impl<'a> WrapperTermRawRequest<'a> {
+    /// Gets all prerequisites for a specified course for the term set by the wrapper.
+    ///
+    /// # Parameters
+    /// - `subject_code`: The subject code. For example, if you wanted to check `MATH 100B`, you
+    /// would put `MATH`.
+    /// - `course_code`: The course code. For example, if you wanted to check `MATH 100B`, you
+    /// would put `100B`.
+    ///
+    /// # Returns
+    /// Prerequisite data as returned by WebReg.
+    pub async fn get_prerequisites(
+        &self,
+        subject_code: impl AsRef<str>,
+        course_code: impl AsRef<str>,
+    ) -> types::Result<String> {
+        let crsc_code = util::get_formatted_course_num(course_code.as_ref());
+        let url = Url::parse_with_params(
+            PREREQS_INFO,
+            &[
+                ("subjcode", subject_code.as_ref()),
+                ("crsecode", crsc_code.as_str()),
+                ("termcode", self.info.term),
+                ("_", util::get_epoch_time().to_string().as_ref()),
+            ],
+        )?;
+
+        extract_text(self.init_get_request(url).send().await).await
     }
 
-    pub fn override_cookies(mut self, cookies: &'a str) -> Self {
-        self.cookies = cookies;
-        self
+    /// Gets your current schedule.
+    ///
+    /// # Parameters
+    /// - `schedule_name`: The schedule that you want to get. If `None` is given, this will default
+    /// to your main schedule.
+    ///
+    /// # Returns
+    /// Schedule data as returned by WebReg.
+    pub async fn get_schedule(&self, schedule_name: Option<&str>) -> types::Result<String> {
+        let url = Url::parse_with_params(
+            CURR_SCHEDULE,
+            &[
+                ("schedname", schedule_name.unwrap_or(DEFAULT_SCHEDULE_NAME)),
+                ("final", ""),
+                ("sectnum", ""),
+                ("termcode", self.info.term),
+                ("_", util::get_epoch_time().to_string().as_str()),
+            ],
+        )?;
+
+        extract_text(self.init_get_request(url).send().await).await
     }
 
-    pub fn override_client(mut self, client: &'a Client) -> Self {
-        self.client = client;
-        self
+    /// Gets course information for a particular course.
+    ///
+    /// Note that WebReg provides this information in a way that makes it hard to use; in
+    /// particular, WebReg separates each lecture, discussion, final exam, etc. from each other.
+    /// This function attempts to figure out which lecture/discussion/final exam/etc. correspond
+    /// to which section.
+    ///
+    /// Additonally, this implementation will not retrieve canceled sections.
+    ///
+    /// # Parameters
+    /// - `subject_code`: The subject code. For example, if you wanted to check `MATH 100B`, you
+    /// would put `MATH`.
+    /// - `course_num`: The course number. For example, if you wanted to check `MATH 100B`, you
+    /// would put `100B`.
+    ///
+    /// # Returns
+    /// Course information, as returned by WebReg.
+    pub async fn get_course_info(
+        &self,
+        subject_code: impl AsRef<str>,
+        course_num: impl AsRef<str>,
+    ) -> types::Result<String> {
+        let crsc_code = util::get_formatted_course_num(course_num.as_ref());
+        let url = Url::parse_with_params(
+            COURSE_DATA,
+            &[
+                ("subjcode", subject_code.as_ref()),
+                ("crsecode", crsc_code.as_str()),
+                ("termcode", self.info.term),
+                ("_", util::get_epoch_time().to_string().as_ref()),
+            ],
+        )?;
+
+        extract_text(self.init_get_request(url).send().await).await
     }
 
-    pub fn override_term(mut self, term: &'a str) -> Self {
-        self.term = term;
-        self
+    /// Gets a list of all departments that are offering courses for the given term.
+    ///
+    /// # Returns
+    /// Department codes, as returned by WebReg.
+    pub async fn get_department_codes(&self) -> types::Result<String> {
+        extract_text(
+            self.init_get_request(Url::parse_with_params(
+                DEPT_LIST,
+                &[
+                    ("termcode", self.info.term),
+                    ("_", util::get_epoch_time().to_string().as_str()),
+                ],
+            )?)
+            .send()
+            .await,
+        )
+        .await
     }
 
-    pub fn override_user_agent(mut self, user_agent: &'a str) -> Self {
-        self.user_agent = user_agent;
-        self
+    /// Gets a list of all subjects that have at least one course offered for the given term.
+    ///
+    /// # Returns
+    /// Subject codes, as returned by WebReg.
+    pub async fn get_subject_codes(&self) -> types::Result<String> {
+        extract_text(
+            self.init_get_request(Url::parse_with_params(
+                SUBJ_LIST,
+                &[
+                    ("termcode", self.info.term),
+                    ("_", util::get_epoch_time().to_string().as_str()),
+                ],
+            )?)
+            .send()
+            .await,
+        )
+        .await
     }
 
-    pub fn override_timeout(mut self, duration: Duration) -> Self {
-        self.timeout = duration;
-        self
+    /// Gets all courses that are available. All this does is searches for all courses via Webreg's
+    /// menu. Thus, only basic details are shown.
+    ///
+    /// # Parameters
+    /// - `filter_by`: The request filter.
+    ///
+    /// # Returns
+    /// Search results, as returned by WebReg.
+    pub async fn search_courses(&self, filter_by: SearchType<'_>) -> types::Result<String> {
+        extract_text(
+            self.init_get_request(build_search_course_url(filter_by, self.info.term)?)
+                .send()
+                .await,
+        )
+        .await
     }
 
-    pub fn finish_building(self) -> WrapperTermRequest<'a> {
-        WrapperTermRequest { info: self }
+    /// Gets all event from your WebReg calendar.
+    ///
+    /// # Returns
+    /// Information about any events you added, as returned by WebReg.
+    pub async fn get_events(&self) -> types::Result<String> {
+        let url = Url::parse_with_params(EVENT_GET, &[("termcode", self.info.term)]).unwrap();
+        extract_text(self.init_get_request(url).send().await).await
+    }
+
+    /// Gets all of your schedules.
+    ///
+    /// # Returns
+    /// Your schedule list, as returned by WebReg.
+    pub async fn get_schedule_list(&self) -> types::Result<String> {
+        let url = Url::parse_with_params(ALL_SCHEDULE, &[("termcode", self.info.term)])?;
+        extract_text(self.init_get_request(url).send().await).await
+    }
+
+    /// Initializes a GET `RequestBuilder` with the cookies and user agent specified.
+    ///
+    /// # Parameters
+    /// - `url`: The URL to make the request for.
+    ///
+    /// # Returns
+    /// The GET `RequestBuilder`.
+    fn init_get_request<U>(&self, url: U) -> RequestBuilder
+    where
+        U: IntoUrl,
+    {
+        self.info
+            .client
+            .get(url)
+            .header(COOKIE, self.info.cookies)
+            .header(USER_AGENT, self.info.user_agent)
+            .timeout(self.info.timeout)
     }
 }
 
+/// A structure that can be used to get data from WebReg and additionally parse it into
+/// a Rust structure so that you can use the data easily without any additional parsing.
+///
+/// # Difference Between This Structure & `WrapperTermRawRequest`
+/// Prefer this structure if you just want to be able to use the data from WebReg, without
+/// any additional parsing. This structure handles a majority of the parsing for you.
+///
+/// Prefer `WrapperTermRawRequest` if you want more control over how WebReg data should be
+/// parsed into a structure.
+///
+/// Keep in mind that this structure gives you the most access to various WebReg APIs that
+/// involve `GET`ting data or `POST`ing data. The raw variant only gives you limited access
+/// to some GET requests (the ones that return interesting data) and none of the POST requests
+/// (since they don't give you anything useful).
+///
+/// In fact, `WrapperTermRequest` makes direct use of `WrapperTermRawRequest`.
 pub struct WrapperTermRequest<'a> {
-    info: WrapperTermRequestBuilder<'a>,
+    pub(crate) raw: WrapperTermRawRequest<'a>,
 }
 
 impl<'a> WrapperTermRequest<'a> {
@@ -142,21 +298,11 @@ impl<'a> WrapperTermRequest<'a> {
         subject_code: impl AsRef<str>,
         course_code: impl AsRef<str>,
     ) -> types::Result<PrerequisiteInfo> {
-        let crsc_code = util::get_formatted_course_num(course_code.as_ref());
-        let url = Url::parse_with_params(
-            PREREQS_INFO,
-            &[
-                ("subjcode", subject_code.as_ref()),
-                ("crsecode", crsc_code.as_str()),
-                ("termcode", self.info.term),
-                ("_", util::get_epoch_time().to_string().as_ref()),
-            ],
-        )?;
-
-        parse_prerequisites(
-            process_get_result::<Vec<RawPrerequisite>>(self.init_get_request(url).send().await)
+        parse_prerequisites(process_get_text::<Vec<RawPrerequisite>>(
+            self.raw
+                .get_prerequisites(subject_code, course_code)
                 .await?,
-        )
+        )?)
     }
 
     /// Gets your current schedule.
@@ -218,21 +364,9 @@ impl<'a> WrapperTermRequest<'a> {
         &self,
         schedule_name: Option<&str>,
     ) -> types::Result<Vec<ScheduledSection>> {
-        let url = Url::parse_with_params(
-            CURR_SCHEDULE,
-            &[
-                ("schedname", schedule_name.unwrap_or(DEFAULT_SCHEDULE_NAME)),
-                ("final", ""),
-                ("sectnum", ""),
-                ("termcode", self.info.term),
-                ("_", util::get_epoch_time().to_string().as_str()),
-            ],
-        )?;
-
-        parse_schedule(
-            process_get_result::<Vec<RawScheduledMeeting>>(self.init_get_request(url).send().await)
-                .await?,
-        )
+        parse_schedule(process_get_text::<Vec<RawScheduledMeeting>>(
+            self.raw.get_schedule(schedule_name).await?,
+        )?)
     }
 
     /// Gets enrollment count for a particular course.
@@ -288,17 +422,6 @@ impl<'a> WrapperTermRequest<'a> {
         subject_code: impl AsRef<str>,
         course_num: impl AsRef<str>,
     ) -> types::Result<Vec<CourseSection>> {
-        let crsc_code = util::get_formatted_course_num(course_num.as_ref());
-        let url = Url::parse_with_params(
-            COURSE_DATA,
-            &[
-                ("subjcode", subject_code.as_ref()),
-                ("crsecode", crsc_code.as_str()),
-                ("termcode", self.info.term),
-                ("_", util::get_epoch_time().to_string().as_ref()),
-            ],
-        )?;
-
         let course_dept_id = format!(
             "{} {}",
             subject_code.as_ref().trim(),
@@ -307,8 +430,9 @@ impl<'a> WrapperTermRequest<'a> {
         .to_uppercase();
 
         parse_enrollment_count(
-            process_get_result::<Vec<RawWebRegMeeting>>(self.init_get_request(url).send().await)
-                .await?,
+            process_get_text::<Vec<RawWebRegMeeting>>(
+                self.raw.get_course_info(subject_code, course_num).await?,
+            )?,
             course_dept_id,
         )
     }
@@ -363,7 +487,6 @@ impl<'a> WrapperTermRequest<'a> {
         subject_code: impl AsRef<str>,
         course_num: impl AsRef<str>,
     ) -> types::Result<Vec<CourseSection>> {
-        let crsc_code = util::get_formatted_course_num(course_num.as_ref());
         let course_dept_id = format!(
             "{} {}",
             subject_code.as_ref().trim(),
@@ -371,18 +494,10 @@ impl<'a> WrapperTermRequest<'a> {
         )
         .to_uppercase();
 
-        let url = self.init_get_request(Url::parse_with_params(
-            COURSE_DATA,
-            &[
-                ("subjcode", subject_code.as_ref()),
-                ("crsecode", crsc_code.as_str()),
-                ("termcode", self.info.term),
-                ("_", util::get_epoch_time().to_string().as_ref()),
-            ],
-        )?);
-
         parse_course_info(
-            process_get_result::<Vec<RawWebRegMeeting>>(url.send().await).await?,
+            process_get_text::<Vec<RawWebRegMeeting>>(
+                self.raw.get_course_info(subject_code, course_num).await?,
+            )?,
             course_dept_id,
         )
     }
@@ -392,21 +507,12 @@ impl<'a> WrapperTermRequest<'a> {
     /// # Returns
     /// A vector of department codes.
     pub async fn get_department_codes(&self) -> types::Result<Vec<String>> {
-        Ok(process_get_result::<Vec<RawDepartmentElement>>(
-            self.init_get_request(Url::parse_with_params(
-                DEPT_LIST,
-                &[
-                    ("termcode", self.info.term),
-                    ("_", util::get_epoch_time().to_string().as_str()),
-                ],
-            )?)
-            .send()
-            .await,
+        Ok(
+            process_get_text::<Vec<RawDepartmentElement>>(self.raw.get_department_codes().await?)?
+                .into_iter()
+                .map(|x| x.dep_code.trim().to_string())
+                .collect::<Vec<_>>(),
         )
-        .await?
-        .into_iter()
-        .map(|x| x.dep_code.trim().to_string())
-        .collect::<Vec<_>>())
     }
 
     /// Gets a list of all subjects that have at least one course offered for the given term.
@@ -414,21 +520,12 @@ impl<'a> WrapperTermRequest<'a> {
     /// # Returns
     /// A vector of subject codes.
     pub async fn get_subject_codes(&self) -> types::Result<Vec<String>> {
-        Ok(process_get_result::<Vec<RawSubjectElement>>(
-            self.init_get_request(Url::parse_with_params(
-                SUBJ_LIST,
-                &[
-                    ("termcode", self.info.term),
-                    ("_", util::get_epoch_time().to_string().as_str()),
-                ],
-            )?)
-            .send()
-            .await,
+        Ok(
+            process_get_text::<Vec<RawSubjectElement>>(self.raw.get_subject_codes().await?)?
+                .into_iter()
+                .map(|x| x.subject_code.trim().to_string())
+                .collect::<Vec<_>>(),
         )
-        .await?
-        .into_iter()
-        .map(|x| x.subject_code.trim().to_string())
-        .collect::<Vec<_>>())
     }
 
     /// Gets all courses that are available. All this does is searches for all courses via Webreg's
@@ -444,12 +541,53 @@ impl<'a> WrapperTermRequest<'a> {
         &self,
         filter_by: SearchType<'_>,
     ) -> types::Result<Vec<RawWebRegSearchResultItem>> {
-        process_get_result::<Vec<RawWebRegSearchResultItem>>(
-            self.init_get_request(build_search_course_url(filter_by, self.info.term)?)
-                .send()
-                .await,
+        process_get_text::<Vec<RawWebRegSearchResultItem>>(
+            self.raw.search_courses(filter_by).await?,
         )
-        .await
+    }
+
+    /// Gets all event from your WebReg calendar.
+    ///
+    /// # Returns
+    /// A vector of all events, or `None` if an error occurred.
+    ///
+    /// # Example
+    /// Renaming the schedule "`Test Schedule`" to "`Another Schedule`."
+    /// ```rust,no_run
+    /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
+    ///
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() {
+    /// let wrapper = WebRegWrapperBuilder::new()
+    ///     .with_cookies("Your cookies here.")
+    ///     .with_default_term("FA23")
+    ///     .try_build_wrapper()
+    ///     .unwrap();
+    ///
+    /// let events = wrapper
+    ///     .default_request()
+    ///     .get_events()
+    ///     .await;
+    /// match events {
+    ///     Ok(events) => events.into_iter().for_each(|event| println!("{event}")),
+    ///     Err(e) => eprintln!("Error! {e}"),
+    /// };
+    /// # }
+    /// ```
+    pub async fn get_events(&self) -> types::Result<Vec<Event>> {
+        parse_get_events(process_get_text::<Vec<RawEvent>>(
+            self.raw.get_events().await?,
+        )?)
+    }
+
+    /// Gets all of your schedules.
+    ///
+    /// # Returns
+    /// Either a vector of strings representing the names of the schedules, or the error that
+    /// occurred.
+    pub async fn get_schedule_list(&self) -> types::Result<Vec<String>> {
+        process_get_text::<Vec<String>>(self.raw.get_schedule_list().await?)
     }
 
     /// Sends an email to yourself using the same email that is used to confirm that you have
@@ -491,7 +629,10 @@ impl<'a> WrapperTermRequest<'a> {
     pub async fn send_email_to_self(&self, email_content: &str) -> types::Result<()> {
         let r = self
             .init_post_request(SEND_EMAIL)
-            .form(&[("actionevent", email_content), ("termcode", self.info.term)])
+            .form(&[
+                ("actionevent", email_content),
+                ("termcode", self.raw.info.term),
+            ])
             .send()
             .await?;
 
@@ -604,7 +745,7 @@ impl<'a> WrapperTermRequest<'a> {
                     // You don't actually need these
                     ("oldGrade", ""),
                     ("oldUnit", ""),
-                    ("termcode", self.info.term),
+                    ("termcode", self.raw.info.term),
                 ])
                 .send()
                 .await,
@@ -667,7 +808,7 @@ impl<'a> WrapperTermRequest<'a> {
                     ("section", plan_options.section_id),
                     ("subjcode", plan_options.subject_code),
                     ("crsecode", crsc_code.as_str()),
-                    ("termcode", self.info.term),
+                    ("termcode", self.raw.info.term),
                 ])
                 .send()
                 .await,
@@ -762,7 +903,7 @@ impl<'a> WrapperTermRequest<'a> {
                             .unwrap_or(GradeOption::L)
                             .as_str(),
                     ),
-                    ("termcode", self.info.term),
+                    ("termcode", self.raw.info.term),
                     (
                         "schedname",
                         match plan_options.schedule_name {
@@ -820,7 +961,7 @@ impl<'a> WrapperTermRequest<'a> {
             self.init_post_request(PLAN_REMOVE)
                 .form(&[
                     ("sectnum", section_id.as_ref()),
-                    ("termcode", self.info.term),
+                    ("termcode", self.raw.info.term),
                     ("schedname", schedule_name.unwrap_or(DEFAULT_SCHEDULE_NAME)),
                 ])
                 .send()
@@ -893,7 +1034,7 @@ impl<'a> WrapperTermRequest<'a> {
                 .form(&[
                     // These are required
                     ("section", enroll_options.section_id),
-                    ("termcode", self.info.term),
+                    ("termcode", self.raw.info.term),
                     // These are optional.
                     ("subjcode", ""),
                     ("crsecode", ""),
@@ -1028,7 +1169,7 @@ impl<'a> WrapperTermRequest<'a> {
                 .form(&[
                     // These are required
                     ("section", enroll_options.section_id),
-                    ("termcode", self.info.term),
+                    ("termcode", self.raw.info.term),
                     // These are optional.
                     ("unit", u.as_str()),
                     (
@@ -1051,7 +1192,7 @@ impl<'a> WrapperTermRequest<'a> {
             self.init_post_request(PLAN_REMOVE_ALL)
                 .form(&[
                     ("sectnum", enroll_options.section_id),
-                    ("termcode", self.info.term),
+                    ("termcode", self.raw.info.term),
                 ])
                 .send()
                 .await,
@@ -1118,7 +1259,7 @@ impl<'a> WrapperTermRequest<'a> {
                     ("crsecode", ""),
                     // But these are required
                     ("section", section_id.as_ref()),
-                    ("termcode", self.info.term),
+                    ("termcode", self.raw.info.term),
                 ])
                 .send()
                 .await,
@@ -1187,7 +1328,7 @@ impl<'a> WrapperTermRequest<'a> {
         process_post_response(
             self.init_post_request(RENAME_SCHEDULE)
                 .form(&[
-                    ("termcode", self.info.term),
+                    ("termcode", self.raw.info.term),
                     ("oldschedname", old_name.as_ref()),
                     ("newschedname", new_name.as_ref()),
                 ])
@@ -1248,7 +1389,7 @@ impl<'a> WrapperTermRequest<'a> {
         process_post_response(
             self.init_post_request(REMOVE_SCHEDULE)
                 .form(&[
-                    ("termcode", self.info.term),
+                    ("termcode", self.raw.info.term),
                     ("schedname", schedule_name.as_ref()),
                 ])
                 .send()
@@ -1395,7 +1536,7 @@ impl<'a> WrapperTermRequest<'a> {
         }
 
         let mut form_data = HashMap::from([
-            ("termcode", self.info.term),
+            ("termcode", self.raw.info.term),
             ("aename", event_info.event_name),
             ("aestarttime", start_time_full.as_str()),
             ("aeendtime", end_time_full.as_str()),
@@ -1458,78 +1599,12 @@ impl<'a> WrapperTermRequest<'a> {
             self.init_post_request(EVENT_REMOVE)
                 .form(&[
                     ("aetimestamp", event_timestamp.as_ref()),
-                    ("termcode", self.info.term),
+                    ("termcode", self.raw.info.term),
                 ])
                 .send()
                 .await,
         )
         .await
-    }
-
-    /// Gets all event from your WebReg calendar.
-    ///
-    /// # Returns
-    /// A vector of all events, or `None` if an error occurred.
-    ///
-    /// # Example
-    /// Renaming the schedule "`Test Schedule`" to "`Another Schedule`."
-    /// ```rust,no_run
-    /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
-    ///
-    ///
-    /// # #[tokio::main(flavor = "current_thread")]
-    /// # async fn main() {
-    /// let wrapper = WebRegWrapperBuilder::new()
-    ///     .with_cookies("Your cookies here.")
-    ///     .with_default_term("FA23")
-    ///     .try_build_wrapper()
-    ///     .unwrap();
-    ///
-    /// let events = wrapper
-    ///     .default_request()
-    ///     .get_events()
-    ///     .await;
-    /// match events {
-    ///     Ok(events) => events.into_iter().for_each(|event| println!("{event}")),
-    ///     Err(e) => eprintln!("Error! {e}"),
-    /// };
-    /// # }
-    /// ```
-    pub async fn get_events(&self) -> types::Result<Vec<Event>> {
-        let url = Url::parse_with_params(EVENT_GET, &[("termcode", self.info.term)]).unwrap();
-        parse_get_events(
-            process_get_result::<Vec<RawEvent>>(self.init_get_request(url).send().await).await?,
-        )
-    }
-
-    /// Gets all of your schedules.
-    ///
-    /// # Returns
-    /// Either a vector of strings representing the names of the schedules, or the error that
-    /// occurred.
-    pub async fn get_schedule_list(&self) -> types::Result<Vec<String>> {
-        let url = Url::parse_with_params(ALL_SCHEDULE, &[("termcode", self.info.term)])?;
-
-        process_get_result::<Vec<String>>(self.init_get_request(url).send().await).await
-    }
-
-    /// Initializes a GET `RequestBuilder` with the cookies and user agent specified.
-    ///
-    /// # Parameters
-    /// - `url`: The URL to make the request for.
-    ///
-    /// # Returns
-    /// The GET `RequestBuilder`.
-    fn init_get_request<U>(&self, url: U) -> RequestBuilder
-    where
-        U: IntoUrl,
-    {
-        self.info
-            .client
-            .get(url)
-            .header(COOKIE, self.info.cookies)
-            .header(USER_AGENT, self.info.user_agent)
-            .timeout(self.info.timeout)
     }
 
     /// Initializes a POST `RequestBuilder` with the cookies and user agent specified.
@@ -1543,11 +1618,12 @@ impl<'a> WrapperTermRequest<'a> {
     where
         U: IntoUrl,
     {
-        self.info
+        self.raw
+            .info
             .client
             .post(url)
-            .header(COOKIE, self.info.cookies)
-            .header(USER_AGENT, self.info.user_agent)
-            .timeout(self.info.timeout)
+            .header(COOKIE, self.raw.info.cookies)
+            .header(USER_AGENT, self.raw.info.user_agent)
+            .timeout(self.raw.info.timeout)
     }
 }

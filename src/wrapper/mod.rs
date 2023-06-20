@@ -1,18 +1,22 @@
+use std::time::Duration;
+
+use reqwest::header::{COOKIE, USER_AGENT};
+use reqwest::Client;
+use serde_json::{json, Value};
+use url::Url;
+
 use crate::raw_types::RawTermListItem;
 use crate::types::{Term, WrapperError};
 use crate::util::get_term_seq_id;
 use crate::wrapper::constants::*;
-use crate::wrapper::req_term_builder::{WrapperTermRequest, WrapperTermRequestBuilder};
+use crate::wrapper::request_builder::WrapperTermRequestBuilder;
+use crate::wrapper::requester_term::WrapperTermRequest;
 use crate::wrapper::ww_helper::process_get_result;
 use crate::{types, util};
-use reqwest::header::{COOKIE, USER_AGENT};
-use reqwest::Client;
-use serde_json::{json, Value};
-use std::time::Duration;
-use url::Url;
 
 mod constants;
-mod req_term_builder;
+pub mod request_builder;
+mod requester_term;
 pub mod search;
 pub mod wrapper_builder;
 mod ww_helper;
@@ -247,9 +251,9 @@ impl WebRegWrapper {
     /// # async fn main() {
     /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies".to_string(), "FA23");
     /// // Associate this wrapper with S123, S223, FA23.
-    /// wrapper.associate_term("S123").await;
-    /// wrapper.associate_term("S223").await;
-    /// wrapper.associate_term("FA23").await;
+    /// _ = wrapper.associate_term("S123").await;
+    /// _ = wrapper.associate_term("S223").await;
+    /// _ = wrapper.associate_term("FA23").await;
     /// // We should now be able to use those three terms.
     /// # }
     /// ```
@@ -360,6 +364,6 @@ impl WebRegWrapper {
     /// # Returns
     /// The requester.
     pub fn default_request(&self) -> WrapperTermRequest {
-        WrapperTermRequestBuilder::new_request(self).finish_building()
+        WrapperTermRequestBuilder::new_request(self).build_term_parser()
     }
 }
