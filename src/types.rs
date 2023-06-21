@@ -5,6 +5,42 @@ use thiserror::Error;
 
 use crate::wrapper::search::DayOfWeek;
 
+/// The generic type is the return value. Otherwise, regardless of request type,
+/// we're just returning the error string if there is an error.
+pub type Result<T, E = WrapperError> = std::result::Result<T, E>;
+
+/// The person's schedule.
+pub type Schedule = Vec<ScheduledSection>;
+
+/// All courses with the specified subject code & course number.
+pub type Courses = Vec<CourseSection>;
+
+/// Represents a search result from WebReg.
+pub type SearchResult = Vec<SearchResultItem>;
+
+/// Represents a vector of all events.
+pub type Events = Vec<Event>;
+
+/// Represents a single search result item from WebReg.
+pub struct SearchResultItem {
+    /// The subject code. For example, `CSE` or `MATH` are both possible option.
+    pub subj_code: String,
+    /// The course code. For example, `100B`.
+    pub course_code: String,
+    /// The course title. For example, `Abstract Algebra II`.
+    pub course_title: String,
+}
+
+impl Display for SearchResultItem {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "{} {} - {}",
+            self.subj_code, self.course_code, self.course_title
+        )
+    }
+}
+
 /// A section, which consists of a lecture, usually a discussion, and usually a final.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub struct CourseSection {
@@ -217,7 +253,7 @@ pub enum EnrollmentStatus {
 /// A prerequisite for a course.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub struct PrerequisiteInfo {
-    /// Any course prerequsiites. This is a vector of vector of prerequisites,
+    /// Any course prerequisites. This is a vector of vector of prerequisites,
     /// where each vector contains one or more prerequisites. Any prerequisites
     /// in the same vector means that you only need one of those prerequisites to
     /// fulfill that requirement.
@@ -436,10 +472,6 @@ pub enum WrapperError {
     #[error("malformed url: {0}")]
     UrlParseError(#[from] url::ParseError),
 }
-
-/// The generic type is the return value. Otherwise, regardless of request type,
-/// we're just returning the error string if there is an error.
-pub type Result<T, E = WrapperError> = std::result::Result<T, E>;
 
 /// A term that is available on WebReg.
 #[derive(Debug, Clone, Serialize)]

@@ -7,8 +7,8 @@ use crate::raw_types::{
     RawCoursePrerequisite, RawEvent, RawPrerequisite, RawScheduledMeeting, RawWebRegMeeting,
 };
 use crate::types::{
-    CoursePrerequisite, CourseSection, EnrollmentStatus, Event, Meeting, MeetingDay,
-    PrerequisiteInfo, ScheduledSection, WrapperError,
+    CoursePrerequisite, CourseSection, Courses, EnrollmentStatus, Event, Events, Meeting,
+    MeetingDay, PrerequisiteInfo, Schedule, ScheduledSection, WrapperError,
 };
 use crate::util::parse_binary_days;
 use crate::wrapper::constants::*;
@@ -64,7 +64,7 @@ pub fn parse_prerequisites(res: Vec<RawPrerequisite>) -> types::Result<Prerequis
 ///
 /// # Returns
 /// Either the parsed schedule information or an error.
-pub fn parse_schedule(res: Vec<RawScheduledMeeting>) -> types::Result<Vec<ScheduledSection>> {
+pub fn parse_schedule(res: Vec<RawScheduledMeeting>) -> types::Result<Schedule> {
     if res.is_empty() {
         return Ok(vec![]);
     }
@@ -94,7 +94,7 @@ pub fn parse_schedule(res: Vec<RawScheduledMeeting>) -> types::Result<Vec<Schedu
             .push(s_meeting);
     }
 
-    let mut schedule: Vec<ScheduledSection> = vec![];
+    let mut schedule: Schedule = vec![];
 
     // We next begin processing the general sections. Each key/value pair represents a course
     // section. We do not care about the key; the value is a vector of meetings, which we will
@@ -318,7 +318,7 @@ pub fn parse_schedule(res: Vec<RawScheduledMeeting>) -> types::Result<Vec<Schedu
 pub fn parse_enrollment_count(
     meetings: Vec<RawWebRegMeeting>,
     subj_num: String,
-) -> types::Result<Vec<CourseSection>> {
+) -> types::Result<Courses> {
     if meetings.is_empty() {
         return Ok(vec![]);
     }
@@ -383,7 +383,7 @@ pub fn parse_course_info_or_enrollment_ct(
     parsed: Vec<RawWebRegMeeting>,
     subj_num: String,
     data_type: CourseInfoType,
-) -> types::Result<Vec<CourseSection>> {
+) -> types::Result<Courses> {
     match data_type {
         CourseInfoType::Full => parse_course_info(parsed, subj_num),
         CourseInfoType::Count => parse_enrollment_count(parsed, subj_num),
@@ -402,8 +402,8 @@ pub fn parse_course_info_or_enrollment_ct(
 pub fn parse_course_info(
     parsed: Vec<RawWebRegMeeting>,
     subj_num: String,
-) -> types::Result<Vec<CourseSection>> {
-    let mut sections: Vec<CourseSection> = vec![];
+) -> types::Result<Courses> {
+    let mut sections: Courses = vec![];
     let mut unprocessed_meetings: Vec<RawWebRegMeeting> = vec![];
 
     // First, let's determine which meetings only have numerical section codes (e.g., 001).
@@ -764,7 +764,7 @@ pub(crate) fn build_search_course_url(filter_by: SearchType<'_>, term: &str) -> 
 ///
 /// # Returns
 /// The parsed events.
-pub(crate) fn parse_get_events(raw_events: Vec<RawEvent>) -> types::Result<Vec<Event>> {
+pub(crate) fn parse_get_events(raw_events: Vec<RawEvent>) -> types::Result<Events> {
     let mut res = vec![];
     for event in raw_events {
         let start_chars = event.start_time.chars().collect::<Vec<_>>();

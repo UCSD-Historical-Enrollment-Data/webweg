@@ -9,8 +9,8 @@ use crate::raw_types::{
     RawWebRegMeeting, RawWebRegSearchResultItem,
 };
 use crate::types::{
-    AddType, CourseSection, EnrollWaitAdd, Event, EventAdd, ExplicitAddType, GradeOption, PlanAdd,
-    PrerequisiteInfo, ScheduledSection, WrapperError,
+    AddType, Courses, EnrollWaitAdd, EventAdd, Events, ExplicitAddType, GradeOption, PlanAdd,
+    PrerequisiteInfo, Schedule, SearchResult, SearchResultItem, WrapperError,
 };
 use crate::wrapper::constants::{
     ALL_SCHEDULE, CHANGE_ENROLL, COURSE_DATA, CURR_SCHEDULE, DEFAULT_SCHEDULE_NAME, DEPT_LIST,
@@ -360,10 +360,7 @@ impl<'a> WrapperTermRequest<'a> {
     /// }
     /// # }
     /// ```
-    pub async fn get_schedule(
-        &self,
-        schedule_name: Option<&str>,
-    ) -> types::Result<Vec<ScheduledSection>> {
+    pub async fn get_schedule(&self, schedule_name: Option<&str>) -> types::Result<Schedule> {
         parse_schedule(process_get_text::<Vec<RawScheduledMeeting>>(
             self.raw.get_schedule(schedule_name).await?,
         )?)
@@ -421,7 +418,7 @@ impl<'a> WrapperTermRequest<'a> {
         &self,
         subject_code: impl AsRef<str>,
         course_num: impl AsRef<str>,
-    ) -> types::Result<Vec<CourseSection>> {
+    ) -> types::Result<Courses> {
         let course_dept_id = format!(
             "{} {}",
             subject_code.as_ref().trim(),
@@ -486,7 +483,7 @@ impl<'a> WrapperTermRequest<'a> {
         &self,
         subject_code: impl AsRef<str>,
         course_num: impl AsRef<str>,
-    ) -> types::Result<Vec<CourseSection>> {
+    ) -> types::Result<Courses> {
         let course_dept_id = format!(
             "{} {}",
             subject_code.as_ref().trim(),
@@ -537,13 +534,17 @@ impl<'a> WrapperTermRequest<'a> {
     /// # Returns
     /// A vector consisting of all courses that are available. Note that the data that is returned
     /// is directly from WebReg's API, so care will need to be taken to clean the resulting data.
-    pub async fn search_courses(
-        &self,
-        filter_by: SearchType<'_>,
-    ) -> types::Result<Vec<RawWebRegSearchResultItem>> {
-        process_get_text::<Vec<RawWebRegSearchResultItem>>(
+    pub async fn search_courses(&self, filter_by: SearchType<'_>) -> types::Result<SearchResult> {
+        Ok(process_get_text::<Vec<RawWebRegSearchResultItem>>(
             self.raw.search_courses(filter_by).await?,
-        )
+        )?
+        .into_iter()
+        .map(|item| SearchResultItem {
+            subj_code: item.subj_code.trim().to_owned(),
+            course_code: item.course_code.trim().to_owned(),
+            course_title: item.course_title.trim().to_owned(),
+        })
+        .collect())
     }
 
     /// Gets all event from your WebReg calendar.
@@ -575,7 +576,7 @@ impl<'a> WrapperTermRequest<'a> {
     /// };
     /// # }
     /// ```
-    pub async fn get_events(&self) -> types::Result<Vec<Event>> {
+    pub async fn get_events(&self) -> types::Result<Events> {
         parse_get_events(process_get_text::<Vec<RawEvent>>(
             self.raw.get_events().await?,
         )?)
