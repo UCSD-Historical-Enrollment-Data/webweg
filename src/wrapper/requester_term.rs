@@ -95,7 +95,7 @@ impl<'a> WrapperTermRawRequest<'a> {
     /// This function attempts to figure out which lecture/discussion/final exam/etc. correspond
     /// to which section.
     ///
-    /// Additonally, this implementation will not retrieve canceled sections.
+    /// Additionally, this implementation will not retrieve canceled sections.
     ///
     /// # Parameters
     /// - `subject_code`: The subject code. For example, if you wanted to check `MATH 100B`, you

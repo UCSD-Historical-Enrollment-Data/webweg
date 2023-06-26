@@ -16,7 +16,7 @@ use crate::{types, util};
 
 mod constants;
 pub mod request_builder;
-mod requester_term;
+pub mod requester_term;
 pub mod search;
 pub mod wrapper_builder;
 mod ww_helper;
