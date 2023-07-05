@@ -22,6 +22,7 @@ pub type SearchResult = Vec<SearchResultItem>;
 pub type Events = Vec<Event>;
 
 /// Represents a single search result item from WebReg.
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub struct SearchResultItem {
     /// The subject code. For example, `CSE` or `MATH` are both possible option.
     pub subj_code: String,
