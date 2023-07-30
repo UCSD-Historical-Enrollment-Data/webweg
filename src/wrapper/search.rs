@@ -259,4 +259,3 @@ pub enum SearchType {
     /// Searches for a (set of) course(s) by multiple specifications.
     Advanced(SearchRequestBuilder),
 }
-
