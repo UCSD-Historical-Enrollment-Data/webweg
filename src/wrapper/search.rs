@@ -119,12 +119,12 @@ impl SearchRequestBuilder {
         self.level_filter |= match filter {
             CourseLevelFilter::LowerDivision => 1 << 11,
             CourseLevelFilter::FreshmenSeminar => 1 << 10,
-            CourseLevelFilter::LowerDivisionIndepStudy => 1 << 9,
+            CourseLevelFilter::LowerDivisionIndependentStudy => 1 << 9,
             CourseLevelFilter::UpperDivision => 1 << 8,
             CourseLevelFilter::Apprenticeship => 1 << 7,
-            CourseLevelFilter::UpperDivisionIndepStudy => 1 << 6,
+            CourseLevelFilter::UpperDivisionIndependentStudy => 1 << 6,
             CourseLevelFilter::Graduate => 1 << 5,
-            CourseLevelFilter::GraduateIndepStudy => 1 << 4,
+            CourseLevelFilter::GraduateIndependentStudy => 1 << 4,
             CourseLevelFilter::GraduateResearch => 1 << 3,
             CourseLevelFilter::Lvl300 => 1 << 2,
             CourseLevelFilter::Lvl400 => 1 << 1,
@@ -226,17 +226,17 @@ pub enum CourseLevelFilter {
     /// Level 87, 90 courses.
     FreshmenSeminar,
     /// Level 99 courses.
-    LowerDivisionIndepStudy,
+    LowerDivisionIndependentStudy,
     /// Level 100-198 courses
     UpperDivision,
     /// Level 195 courses
     Apprenticeship,
     /// Level 199 courses
-    UpperDivisionIndepStudy,
+    UpperDivisionIndependentStudy,
     /// Level 200-297 courses
     Graduate,
     /// Level 298 courses
-    GraduateIndepStudy,
+    GraduateIndependentStudy,
     /// Level 299 courses
     GraduateResearch,
     /// Level 300+ courses
@@ -247,14 +247,16 @@ pub enum CourseLevelFilter {
     Lvl500,
 }
 
-/// Lets you choose how you want to search for a course.
-pub enum SearchType<'a> {
+/// Lets you choose how you want to search for a course. It is recommended that
+/// you use one of the associated functions to create this enum instance.
+pub enum SearchType {
     /// Searches for a course by section ID.
-    BySection(&'a str),
+    BySection(String),
 
     /// Searches for a course by more than one section ID.
-    ByMultipleSections(&'a [&'a str]),
+    ByMultipleSections(Vec<String>),
 
     /// Searches for a (set of) course(s) by multiple specifications.
-    Advanced(&'a SearchRequestBuilder),
+    Advanced(SearchRequestBuilder),
 }
+

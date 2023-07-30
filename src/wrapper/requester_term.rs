@@ -170,7 +170,7 @@ impl<'a> WrapperTermRawRequest<'a> {
     ///
     /// # Returns
     /// Search results, as returned by WebReg.
-    pub async fn search_courses(&self, filter_by: SearchType<'_>) -> types::Result<String> {
+    pub async fn search_courses(&self, filter_by: SearchType) -> types::Result<String> {
         extract_text(
             self.init_get_request(build_search_course_url(filter_by, self.info.term)?)
                 .send()
@@ -534,7 +534,7 @@ impl<'a> WrapperTermRequest<'a> {
     /// # Returns
     /// A vector consisting of all courses that are available. Note that the data that is returned
     /// is directly from WebReg's API, so care will need to be taken to clean the resulting data.
-    pub async fn search_courses(&self, filter_by: SearchType<'_>) -> types::Result<SearchResult> {
+    pub async fn search_courses(&self, filter_by: SearchType) -> types::Result<SearchResult> {
         Ok(process_get_text::<Vec<RawWebRegSearchResultItem>>(
             self.raw.search_courses(filter_by).await?,
         )?
@@ -1059,7 +1059,7 @@ impl<'a> WrapperTermRequest<'a> {
     /// the user can enroll into the specified section.
     pub async fn get_add_type(&self, section_id: &str) -> types::Result<ExplicitAddType> {
         let search_res = self
-            .search_courses(SearchType::BySection(section_id))
+            .search_courses(SearchType::BySection(section_id.to_string()))
             .await?;
 
         if search_res.is_empty() {

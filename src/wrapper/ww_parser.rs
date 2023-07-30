@@ -642,11 +642,11 @@ pub fn parse_course_info(
 ///
 /// # Returns
 /// The resulting URL that can be used to search for courses.
-pub(crate) fn build_search_course_url(filter_by: SearchType<'_>, term: &str) -> types::Result<Url> {
+pub(crate) fn build_search_course_url(filter_by: SearchType, term: &str) -> types::Result<Url> {
     Ok(match filter_by {
         SearchType::BySection(section) => Url::parse_with_params(
             WEBREG_SEARCH_SEC,
-            &[("sectionid", section), ("termcode", term)],
+            &[("sectionid", section), ("termcode", term.into())],
         )?,
         SearchType::ByMultipleSections(sections) => Url::parse_with_params(
             WEBREG_SEARCH_SEC,
