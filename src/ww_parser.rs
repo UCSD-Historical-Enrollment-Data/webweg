@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 
 use url::Url;
 
+use crate::constants::*;
 use crate::raw_types::{
     RawCoursePrerequisite, RawEvent, RawPrerequisite, RawScheduledMeeting, RawWebRegMeeting,
 };
@@ -11,8 +12,7 @@ use crate::types::{
     MeetingDay, PrerequisiteInfo, Schedule, ScheduledSection, WrapperError,
 };
 use crate::util::parse_binary_days;
-use crate::wrapper::constants::*;
-use crate::wrapper::search::SearchType;
+use crate::wrapper::input_types::SearchType;
 use crate::{types, util};
 
 /// Processes the vector containing raw prerequisites information.

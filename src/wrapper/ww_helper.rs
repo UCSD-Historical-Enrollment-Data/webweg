@@ -1,10 +1,10 @@
+use crate::constants::VERIFY_FAIL_ERR;
 use reqwest::{Error, Response};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use crate::types;
 use crate::types::WrapperError;
-use crate::wrapper::constants::VERIFY_FAIL_ERR;
 
 /// Extracts text from the given response, handling the possibility that a bad status code
 /// or a verification error occurs.

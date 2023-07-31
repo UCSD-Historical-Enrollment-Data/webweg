@@ -1,8 +1,8 @@
 use std::time::Duration;
 
+use crate::constants::MY_USER_AGENT;
 use reqwest::Client;
 
-use crate::wrapper::constants::MY_USER_AGENT;
 use crate::wrapper::WebRegWrapper;
 
 /// A builder for the `WebRegWrapper`. This should be used to construct a new wrapper.

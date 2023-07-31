@@ -3,8 +3,6 @@ use std::fmt::{Display, Formatter};
 use serde::Serialize;
 use thiserror::Error;
 
-use crate::wrapper::search::DayOfWeek;
-
 /// The generic type is the return value. Otherwise, regardless of request type,
 /// we're just returning the error string if there is an error.
 pub type Result<T, E = WrapperError> = std::result::Result<T, E>;
@@ -291,10 +289,7 @@ impl CoursePrerequisite {
     ///
     /// # Returns
     /// The new `CoursePrerequisite` object.
-    pub fn new<S>(subj_course_id: S, course_title: S) -> Self
-    where
-        S: Into<String>,
-    {
+    pub fn new(subj_course_id: impl Into<String>, course_title: impl Into<String>) -> Self {
         Self {
             subj_course_id: subj_course_id.into(),
             course_title: course_title.into(),
@@ -338,110 +333,6 @@ impl Display for Event {
     }
 }
 
-/// Use this struct to add more information regarding the section that you want to enroll/waitlist
-/// in.
-pub struct EnrollWaitAdd<'a> {
-    /// The section ID. For example, `0123123`.
-    pub section_id: &'a str,
-    /// The grading option. Can either be L, P, or S.
-    /// If None is specified, this uses the default option.
-    pub grading_option: Option<GradeOption>,
-    /// The number of units. If none is specified, this
-    /// uses the default unit count.
-    pub unit_count: Option<u8>,
-}
-
-impl<'a> EnrollWaitAdd<'a> {
-    /// Creates a new `EnrollWaitAdd` structure with the specified `section_id` and default grading
-    /// option and unit count.
-    ///
-    /// # Parameters
-    /// - `section_id`: The section ID.
-    ///
-    /// # Returns
-    /// The structure.
-    pub fn new(section_id: &'a str) -> Self {
-        Self {
-            section_id,
-            grading_option: None,
-            unit_count: None,
-        }
-    }
-}
-
-// This trait implementation may be helpful later.
-impl<'a> AsRef<EnrollWaitAdd<'a>> for EnrollWaitAdd<'a> {
-    fn as_ref(&self) -> &EnrollWaitAdd<'a> {
-        self
-    }
-}
-
-/// Use this struct to add more information regarding the course that you want to plan.
-pub struct PlanAdd<'a> {
-    /// The subject code. For example, `CSE`.
-    pub subject_code: &'a str,
-    /// The course code. For example, `12`.
-    pub course_code: &'a str,
-    /// The section ID. For example, `0123123`.
-    pub section_id: &'a str,
-    /// The section code. For example `A00`.
-    pub section_code: &'a str,
-    /// The grading option.
-    pub grading_option: Option<GradeOption>,
-    /// The schedule name.
-    pub schedule_name: Option<&'a str>,
-    /// The number of units.
-    pub unit_count: u8,
-}
-
-/// A struct that represents an event to be added.
-pub struct EventAdd<'a> {
-    /// The name of the event. This is required.
-    pub event_name: &'a str,
-    /// The location of the event. This is optional.
-    pub location: Option<&'a str>,
-    /// The days that this event will be held.
-    pub event_days: Vec<DayOfWeek>,
-    /// The hour start time. For example, if the event starts at
-    /// 3:50 PM, use `15` (since `12 + 3 = 15`).
-    pub start_hr: i16,
-    /// The minute start time. For example, if the event starts at
-    /// 3:50 PM, use `50`.
-    pub start_min: i16,
-    /// The hour end time. For example, if the event ends at 3:50 PM,
-    /// use `15` (since `12 + 3 = 15`).
-    pub end_hr: i16,
-    /// The minute end time. For example, if the event ends at 3:50 PM,
-    /// use `50`.
-    pub end_min: i16,
-}
-
-/// The possible grading options.
-pub enum GradeOption {
-    /// S/U grading (Satisfactory/Unsatisfactory) option.
-    S,
-
-    /// P/NP grading (Pass/No Pass) option.
-    P,
-
-    /// Letter grading option.
-    L,
-}
-
-impl GradeOption {
-    /// Gets the (static) string representation of this `enum`.
-    ///
-    /// # Returns
-    /// The static string representation.
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            GradeOption::L => "L",
-            GradeOption::S => "S",
-            GradeOption::P => "P",
-        }
-    }
-}
-
 #[derive(Error, Debug)]
 pub enum WrapperError {
     /// Occurs if there was an error encountered by the reqwest library.
@@ -481,24 +372,4 @@ pub struct Term {
     pub seq_id: i64,
     /// The term code (e.g., `SP23`).
     pub term_code: String,
-}
-
-/// An enum that represents how a course should be added to the person's schedule when
-/// calling the corresponding `add_section` method (and associated methods).
-pub enum AddType {
-    /// Indicates that the user wants to enroll into the section.
-    Enroll,
-    /// Indicates that the user wants to waitlist the section.
-    Waitlist,
-    /// Have the library check whether the user should enroll or waitlist.
-    DecideForMe,
-}
-
-/// An enum that's similar to `AddType`, but explicitly only allows `Enroll` or `Waitlist`
-/// actions.
-pub enum ExplicitAddType {
-    /// Indicates that the user wants to enroll into the section.
-    Enroll,
-    /// Indicates that the user wants to waitlist the section.
-    Waitlist,
 }

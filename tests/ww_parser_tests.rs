@@ -2,7 +2,7 @@
 mod prerequisites_tests {
     use webweg::raw_types::RawPrerequisite;
     use webweg::types::{CoursePrerequisite, PrerequisiteInfo};
-    use webweg::wrapper::ww_parser::parse_prerequisites;
+    use webweg::ww_parser::parse_prerequisites;
 
     /// Sorts the prerequisite objects so that we can check equality without needing to use
     /// a HashMap.
@@ -150,7 +150,7 @@ mod prerequisites_tests {
 mod schedule_tests {
     use webweg::raw_types::RawScheduledMeeting;
     use webweg::types::{EnrollmentStatus, Meeting, MeetingDay, ScheduledSection};
-    use webweg::wrapper::ww_parser::parse_schedule;
+    use webweg::ww_parser::parse_schedule;
 
     /// Sorts the schedule objects so that we can check equality without needing to use
     /// a HashMap.
@@ -367,7 +367,7 @@ mod schedule_tests {
 mod course_info_tests {
     use webweg::raw_types::RawWebRegMeeting;
     use webweg::types::{CourseSection, Meeting, MeetingDay};
-    use webweg::wrapper::ww_parser::parse_course_info;
+    use webweg::ww_parser::parse_course_info;
 
     /// Sorts the course section objects so that we can check equality without needing to use
     /// a HashMap.

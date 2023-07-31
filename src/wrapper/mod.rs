@@ -5,22 +5,20 @@ use reqwest::Client;
 use serde_json::{json, Value};
 use url::Url;
 
+use crate::constants::*;
 use crate::raw_types::RawTermListItem;
 use crate::types::{Term, WrapperError};
 use crate::util::get_term_seq_id;
-use crate::wrapper::constants::*;
 use crate::wrapper::request_builder::WrapperTermRequestBuilder;
 use crate::wrapper::requester_term::WrapperTermRequest;
 use crate::wrapper::ww_helper::process_get_result;
 use crate::{types, util};
 
-mod constants;
+pub mod input_types;
 pub mod request_builder;
 pub mod requester_term;
-pub mod search;
 pub mod wrapper_builder;
 mod ww_helper;
-pub mod ww_parser;
 
 /// A wrapper for [UCSD's WebReg](https://act.ucsd.edu/webreg2/start). For more information,
 /// please see the README.

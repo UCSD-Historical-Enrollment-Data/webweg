@@ -4,24 +4,25 @@ use reqwest::header::{COOKIE, USER_AGENT};
 use reqwest::{IntoUrl, RequestBuilder};
 use url::Url;
 
-use crate::raw_types::{
-    RawDepartmentElement, RawEvent, RawPrerequisite, RawScheduledMeeting, RawSubjectElement,
-    RawWebRegMeeting, RawWebRegSearchResultItem,
-};
-use crate::types::{
-    AddType, Courses, EnrollWaitAdd, EventAdd, Events, ExplicitAddType, GradeOption, PlanAdd,
-    PrerequisiteInfo, Schedule, SearchResult, SearchResultItem, WrapperError,
-};
-use crate::wrapper::constants::{
+use crate::constants::{
     ALL_SCHEDULE, CHANGE_ENROLL, COURSE_DATA, CURR_SCHEDULE, DEFAULT_SCHEDULE_NAME, DEPT_LIST,
     ENROLL_ADD, ENROLL_DROP, ENROLL_EDIT, EVENT_ADD, EVENT_EDIT, EVENT_GET, EVENT_REMOVE, PLAN_ADD,
     PLAN_EDIT, PLAN_REMOVE, PLAN_REMOVE_ALL, PREREQS_INFO, REMOVE_SCHEDULE, RENAME_SCHEDULE,
     SEND_EMAIL, SUBJ_LIST, WAITLIST_ADD, WAITLIST_DROP, WAITLIST_EDIT,
 };
+use crate::raw_types::{
+    RawDepartmentElement, RawEvent, RawPrerequisite, RawScheduledMeeting, RawSubjectElement,
+    RawWebRegMeeting, RawWebRegSearchResultItem,
+};
+use crate::types::{
+    Courses, Events, PrerequisiteInfo, Schedule, SearchResult, SearchResultItem, WrapperError,
+};
+use crate::wrapper::input_types::{
+    AddType, DayOfWeek, EnrollWaitAdd, EventAdd, ExplicitAddType, GradeOption, PlanAdd, SearchType,
+};
 use crate::wrapper::request_builder::WrapperTermRequestBuilder;
-use crate::wrapper::search::{DayOfWeek, SearchType};
 use crate::wrapper::ww_helper::{extract_text, process_get_text, process_post_response};
-use crate::wrapper::ww_parser::{
+use crate::ww_parser::{
     build_search_course_url, parse_course_info, parse_enrollment_count, parse_get_events,
     parse_prerequisites, parse_schedule,
 };
@@ -664,7 +665,7 @@ impl<'a> WrapperTermRequest<'a> {
     /// # Example
     /// Changing the section associated with section ID `235181` to letter grading option.
     /// ```rust,no_run
-    /// use webweg::types::GradeOption;
+    /// use webweg::wrapper::input_types::GradeOption;
     /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
@@ -767,7 +768,7 @@ impl<'a> WrapperTermRequest<'a> {
     /// Here, we will add the course `CSE 100`, which has section ID `079911` and section code
     /// `A01`, to our plan.
     /// ```rust,no_run
-    /// use webweg::types::{GradeOption, PlanAdd};
+    /// use webweg::wrapper::input_types::{GradeOption, PlanAdd};
     /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
@@ -778,17 +779,15 @@ impl<'a> WrapperTermRequest<'a> {
     ///     .try_build_wrapper()
     ///     .unwrap();
     ///
-    /// let plan_add_data = PlanAdd {
-    ///     subject_code: "CSE",
-    ///     course_code: "100",
-    ///     section_id: "079911",
-    ///     section_code: "A01",
-    ///     // Using S/U grading.
-    ///     grading_option: Some(GradeOption::S),
-    ///     // Put in default schedule
-    ///     schedule_name: None,
-    ///     unit_count: 4,
-    /// };
+    /// let plan_add_data = PlanAdd::builder()
+    ///     .with_subject_code("CSE")
+    ///     .with_course_code("100")
+    ///     .with_section_id("079911")
+    ///     .with_section_code("A01")
+    ///     .with_grading_option(GradeOption::S)
+    ///     .with_unit_count(4)
+    ///     .try_build()
+    ///     .unwrap();
     ///
     /// let plan_res = wrapper
     ///     .default_request()
@@ -802,12 +801,12 @@ impl<'a> WrapperTermRequest<'a> {
     /// # }
     /// ```
     pub async fn validate_add_to_plan(&self, plan_options: &PlanAdd<'_>) -> types::Result<bool> {
-        let crsc_code = util::get_formatted_course_num(plan_options.course_code);
+        let crsc_code = util::get_formatted_course_num(plan_options.course_code.as_ref());
         process_post_response(
             self.init_post_request(PLAN_EDIT)
                 .form(&[
-                    ("section", plan_options.section_id),
-                    ("subjcode", plan_options.subject_code),
+                    ("section", plan_options.section_id.as_ref()),
+                    ("subjcode", plan_options.subject_code.as_ref()),
                     ("crsecode", crsc_code.as_str()),
                     ("termcode", self.raw.info.term),
                 ])
@@ -838,27 +837,26 @@ impl<'a> WrapperTermRequest<'a> {
     /// Here, we will add the course `POLI 145`, which has section ID `278941` and section code
     /// `A00`, to our plan.
     /// ```rust,no_run
-    /// use webweg::types::{GradeOption, PlanAdd};
+    /// use webweg::wrapper::input_types::{GradeOption, PlanAdd};
     /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
     /// # async fn main() {
     /// let wrapper = WebRegWrapperBuilder::new()
-    ///     .with_cookies("Your cookies here")
+    ///     .with_cookies("Your cookies here.")
     ///     .with_default_term("FA23")
     ///     .try_build_wrapper()
     ///     .unwrap();
     ///
-    /// let plan_add_data = PlanAdd {
-    ///     subject_code: "POLI",
-    ///     course_code: "145",
-    ///     section_id: "278941",
-    ///     section_code: "A00",
-    ///     grading_option: Some(GradeOption::P),
-    ///     // Put in default schedule
-    ///     schedule_name: None,
-    ///     unit_count: 4,
-    /// };
+    /// let plan_add_data = PlanAdd::builder()
+    ///     .with_subject_code("CSE")
+    ///     .with_course_code("100")
+    ///     .with_section_id("079911")
+    ///     .with_section_code("A01")
+    ///     .with_grading_option(GradeOption::S)
+    ///     .with_unit_count(4)
+    ///     .try_build()
+    ///     .unwrap();
     ///
     /// let plan_res = wrapper
     ///     .default_request()
@@ -877,7 +875,7 @@ impl<'a> WrapperTermRequest<'a> {
         validate: bool,
     ) -> types::Result<bool> {
         let u = plan_options.unit_count.to_string();
-        let crsc_code = util::get_formatted_course_num(plan_options.course_code);
+        let crsc_code = util::get_formatted_course_num(plan_options.course_code.as_ref());
 
         if validate {
             // We need to call the edit endpoint first, or else we'll have issues where we don't
@@ -892,10 +890,10 @@ impl<'a> WrapperTermRequest<'a> {
         process_post_response(
             self.init_post_request(PLAN_ADD)
                 .form(&[
-                    ("subjcode", plan_options.subject_code),
+                    ("subjcode", plan_options.subject_code.as_ref()),
                     ("crsecode", crsc_code.as_str()),
-                    ("sectnum", plan_options.section_id),
-                    ("sectcode", plan_options.section_code),
+                    ("sectnum", plan_options.section_id.as_ref()),
+                    ("sectcode", plan_options.section_code.as_ref()),
                     ("unit", u.as_str()),
                     (
                         "grade",
@@ -908,7 +906,7 @@ impl<'a> WrapperTermRequest<'a> {
                     (
                         "schedname",
                         match plan_options.schedule_name {
-                            Some(r) => r,
+                            Some(ref r) => r.as_ref(),
                             None => DEFAULT_SCHEDULE_NAME,
                         },
                     ),
@@ -988,7 +986,7 @@ impl<'a> WrapperTermRequest<'a> {
     /// Here, we will enroll in the course with section ID `078616`, and with the default grading
     /// option and unit count.
     /// ```rust,no_run
-    /// use webweg::types::{AddType, EnrollWaitAdd};
+    /// use webweg::wrapper::input_types::{AddType, EnrollWaitAdd};
     /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
@@ -999,11 +997,10 @@ impl<'a> WrapperTermRequest<'a> {
     ///     .try_build_wrapper()
     ///     .unwrap();
     ///
-    /// let enroll_options = EnrollWaitAdd {
-    ///     section_id: "260737",
-    ///     grading_option: None,
-    ///     unit_count: None,
-    /// };
+    /// let enroll_options = EnrollWaitAdd::builder()
+    ///     .with_section_id("260737")
+    ///     .try_build()
+    ///     .unwrap();
     ///
     /// let add_res = wrapper
     ///     .default_request()
@@ -1024,7 +1021,10 @@ impl<'a> WrapperTermRequest<'a> {
         let base_edit_url = match add_type {
             AddType::Enroll => ENROLL_EDIT,
             AddType::Waitlist => WAITLIST_EDIT,
-            AddType::DecideForMe => match self.get_add_type(enroll_options.section_id).await? {
+            AddType::DecideForMe => match self
+                .get_add_type(enroll_options.section_id.as_ref())
+                .await?
+            {
                 ExplicitAddType::Enroll => ENROLL_EDIT,
                 ExplicitAddType::Waitlist => WAITLIST_EDIT,
             },
@@ -1034,7 +1034,7 @@ impl<'a> WrapperTermRequest<'a> {
             self.init_post_request(base_edit_url)
                 .form(&[
                     // These are required
-                    ("section", enroll_options.section_id),
+                    ("section", enroll_options.section_id.as_ref()),
                     ("termcode", self.raw.info.term),
                     // These are optional.
                     ("subjcode", ""),
@@ -1113,7 +1113,7 @@ impl<'a> WrapperTermRequest<'a> {
     /// Here, we will enroll in the course with section ID `260737`, and with the default grading
     /// option and unit count.
     /// ```rust,no_run
-    /// use webweg::types::{AddType, EnrollWaitAdd};
+    /// use webweg::wrapper::input_types::{AddType, EnrollWaitAdd};
     /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
@@ -1124,11 +1124,10 @@ impl<'a> WrapperTermRequest<'a> {
     ///     .try_build_wrapper()
     ///     .unwrap();
     ///
-    /// let enroll_options = EnrollWaitAdd {
-    ///     section_id: "260737",
-    ///     grading_option: None,
-    ///     unit_count: None,
-    /// };
+    /// let enroll_options = EnrollWaitAdd::builder()
+    ///     .with_section_id("260737")
+    ///     .try_build()
+    ///     .unwrap();
     ///
     /// let add_res = wrapper
     ///     .default_request()
@@ -1151,7 +1150,10 @@ impl<'a> WrapperTermRequest<'a> {
         let base_reg_url = match add_type {
             AddType::Enroll => ENROLL_ADD,
             AddType::Waitlist => WAITLIST_ADD,
-            AddType::DecideForMe => match self.get_add_type(enroll_options.section_id).await? {
+            AddType::DecideForMe => match self
+                .get_add_type(enroll_options.section_id.as_ref())
+                .await?
+            {
                 ExplicitAddType::Enroll => ENROLL_ADD,
                 ExplicitAddType::Waitlist => WAITLIST_ADD,
             },
@@ -1169,7 +1171,7 @@ impl<'a> WrapperTermRequest<'a> {
             self.init_post_request(base_reg_url)
                 .form(&[
                     // These are required
-                    ("section", enroll_options.section_id),
+                    ("section", enroll_options.section_id.as_ref()),
                     ("termcode", self.raw.info.term),
                     // These are optional.
                     ("unit", u.as_str()),
@@ -1192,7 +1194,7 @@ impl<'a> WrapperTermRequest<'a> {
         process_post_response(
             self.init_post_request(PLAN_REMOVE_ALL)
                 .form(&[
-                    ("sectnum", enroll_options.section_id),
+                    ("sectnum", enroll_options.section_id.as_ref()),
                     ("termcode", self.raw.info.term),
                 ])
                 .send()
@@ -1220,8 +1222,8 @@ impl<'a> WrapperTermRequest<'a> {
     /// Here, we assume that we are enrolled in a course with section ID `078616`, and want to
     /// drop it.
     /// ```rust,no_run
+    /// use webweg::wrapper::input_types::ExplicitAddType;
     /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
-    /// use webweg::types::{EnrollWaitAdd, ExplicitAddType};
     ///
     /// # #[tokio::main(flavor = "current_thread")]
     /// # async fn main() {
@@ -1417,8 +1419,7 @@ impl<'a> WrapperTermRequest<'a> {
     /// # Example
     /// Renaming the schedule "`Test Schedule`" to "`Another Schedule`."
     /// ```rust,no_run
-    /// use webweg::types::EventAdd;
-    /// use webweg::wrapper::search::DayOfWeek;
+    /// use webweg::wrapper::input_types::{DayOfWeek, EventAdd};
     /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
@@ -1429,15 +1430,15 @@ impl<'a> WrapperTermRequest<'a> {
     ///     .try_build_wrapper()
     ///     .unwrap();
     ///
-    /// let event_to_add = EventAdd {
-    ///     event_name: "Clown on AYU",
-    ///     location: Some("B250"),
-    ///     event_days: vec![DayOfWeek::Monday, DayOfWeek::Friday],
-    ///     start_hr: 8,
-    ///     start_min: 30,
-    ///     end_hr: 10,
-    ///     end_min: 45,
-    /// };
+    /// let event_to_add = EventAdd::builder()
+    ///     .with_name("Clown on Alex")
+    ///     .with_location("B250")
+    ///     .with_day(DayOfWeek::Monday)
+    ///     .with_day(DayOfWeek::Friday)
+    ///     .with_start_time(8, 30)
+    ///     .with_end_time(10, 45)
+    ///     .try_build()
+    ///     .unwrap();
     ///
     /// // Adding an event
     /// let add_res = wrapper
@@ -1449,15 +1450,15 @@ impl<'a> WrapperTermRequest<'a> {
     ///     Err(e) => println!("Error! {e}"),
     /// }
     ///
-    /// let event_to_replace_with = EventAdd {
-    ///     event_name: "Clown on Kiwi",
-    ///     location: Some("B260"),
-    ///     event_days: vec![DayOfWeek::Tuesday, DayOfWeek::Thursday],
-    ///     start_hr: 10,
-    ///     start_min: 30,
-    ///     end_hr: 13,
-    ///     end_min: 0,
-    /// };
+    /// let event_to_replace_with = EventAdd::builder()
+    ///     .with_name("Clown on Kira and Ruby")
+    ///     .with_location("CSE")
+    ///     .with_day(DayOfWeek::Monday)
+    ///     .with_day(DayOfWeek::Wednesday)
+    ///     .with_start_time(8, 30)
+    ///     .with_end_time(10, 45)
+    ///     .try_build()
+    ///     .unwrap();
     ///
     /// // Replace the event with the specified timestamp `2022-09-09 21:50:16.846885`
     /// // with another event.
@@ -1538,10 +1539,16 @@ impl<'a> WrapperTermRequest<'a> {
 
         let mut form_data = HashMap::from([
             ("termcode", self.raw.info.term),
-            ("aename", event_info.event_name),
+            ("aename", event_info.event_name.as_ref()),
             ("aestarttime", start_time_full.as_str()),
             ("aeendtime", end_time_full.as_str()),
-            ("aelocation", event_info.location.unwrap_or("")),
+            (
+                "aelocation",
+                match event_info.location {
+                    None => "",
+                    Some(ref s) => s.as_ref(),
+                },
+            ),
             ("aedays", day_str.as_str()),
         ]);
 
