@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use reqwest::header::{COOKIE, USER_AGENT};
-use reqwest::{IntoUrl, RequestBuilder};
 use url::Url;
 
 use crate::constants::{
@@ -22,6 +20,7 @@ use crate::wrapper::input_types::{
 };
 use crate::wrapper::request_builder::WrapperTermRequestBuilder;
 use crate::wrapper::ww_helper::{extract_text, process_get_text, process_post_response};
+use crate::wrapper::ReqwestClientWrapper;
 use crate::ww_parser::{
     build_search_course_url, parse_course_info, parse_enrollment_count, parse_get_events,
     parse_prerequisites, parse_schedule,
@@ -63,7 +62,7 @@ impl<'a> WrapperTermRawRequest<'a> {
             ],
         )?;
 
-        extract_text(self.init_get_request(url).send().await).await
+        extract_text(self.info.req_get(url).send().await).await
     }
 
     /// Gets your current schedule.
@@ -86,7 +85,7 @@ impl<'a> WrapperTermRawRequest<'a> {
             ],
         )?;
 
-        extract_text(self.init_get_request(url).send().await).await
+        extract_text(self.info.req_get(url).send().await).await
     }
 
     /// Gets course information for a particular course.
@@ -122,7 +121,7 @@ impl<'a> WrapperTermRawRequest<'a> {
             ],
         )?;
 
-        extract_text(self.init_get_request(url).send().await).await
+        extract_text(self.info.req_get(url).send().await).await
     }
 
     /// Gets a list of all departments that are offering courses for the given term.
@@ -131,15 +130,16 @@ impl<'a> WrapperTermRawRequest<'a> {
     /// Department codes, as returned by WebReg.
     pub async fn get_department_codes(&self) -> types::Result<String> {
         extract_text(
-            self.init_get_request(Url::parse_with_params(
-                DEPT_LIST,
-                &[
-                    ("termcode", self.info.term),
-                    ("_", util::get_epoch_time().to_string().as_str()),
-                ],
-            )?)
-            .send()
-            .await,
+            self.info
+                .req_get(Url::parse_with_params(
+                    DEPT_LIST,
+                    &[
+                        ("termcode", self.info.term),
+                        ("_", util::get_epoch_time().to_string().as_str()),
+                    ],
+                )?)
+                .send()
+                .await,
         )
         .await
     }
@@ -150,15 +150,16 @@ impl<'a> WrapperTermRawRequest<'a> {
     /// Subject codes, as returned by WebReg.
     pub async fn get_subject_codes(&self) -> types::Result<String> {
         extract_text(
-            self.init_get_request(Url::parse_with_params(
-                SUBJ_LIST,
-                &[
-                    ("termcode", self.info.term),
-                    ("_", util::get_epoch_time().to_string().as_str()),
-                ],
-            )?)
-            .send()
-            .await,
+            self.info
+                .req_get(Url::parse_with_params(
+                    SUBJ_LIST,
+                    &[
+                        ("termcode", self.info.term),
+                        ("_", util::get_epoch_time().to_string().as_str()),
+                    ],
+                )?)
+                .send()
+                .await,
         )
         .await
     }
@@ -173,7 +174,8 @@ impl<'a> WrapperTermRawRequest<'a> {
     /// Search results, as returned by WebReg.
     pub async fn search_courses(&self, filter_by: SearchType) -> types::Result<String> {
         extract_text(
-            self.init_get_request(build_search_course_url(filter_by, self.info.term)?)
+            self.info
+                .req_get(build_search_course_url(filter_by, self.info.term)?)
                 .send()
                 .await,
         )
@@ -186,7 +188,7 @@ impl<'a> WrapperTermRawRequest<'a> {
     /// Information about any events you added, as returned by WebReg.
     pub async fn get_events(&self) -> types::Result<String> {
         let url = Url::parse_with_params(EVENT_GET, &[("termcode", self.info.term)]).unwrap();
-        extract_text(self.init_get_request(url).send().await).await
+        extract_text(self.info.req_get(url).send().await).await
     }
 
     /// Gets all of your schedules.
@@ -195,26 +197,7 @@ impl<'a> WrapperTermRawRequest<'a> {
     /// Your schedule list, as returned by WebReg.
     pub async fn get_schedule_list(&self) -> types::Result<String> {
         let url = Url::parse_with_params(ALL_SCHEDULE, &[("termcode", self.info.term)])?;
-        extract_text(self.init_get_request(url).send().await).await
-    }
-
-    /// Initializes a GET `RequestBuilder` with the cookies and user agent specified.
-    ///
-    /// # Parameters
-    /// - `url`: The URL to make the request for.
-    ///
-    /// # Returns
-    /// The GET `RequestBuilder`.
-    fn init_get_request<U>(&self, url: U) -> RequestBuilder
-    where
-        U: IntoUrl,
-    {
-        self.info
-            .client
-            .get(url)
-            .header(COOKIE, self.info.cookies)
-            .header(USER_AGENT, self.info.user_agent)
-            .timeout(self.info.timeout)
+        extract_text(self.info.req_get(url).send().await).await
     }
 }
 
@@ -630,7 +613,9 @@ impl<'a> WrapperTermRequest<'a> {
     /// ```
     pub async fn send_email_to_self(&self, email_content: &str) -> types::Result<()> {
         let r = self
-            .init_post_request(SEND_EMAIL)
+            .raw
+            .info
+            .req_post(SEND_EMAIL)
             .form(&[
                 ("actionevent", email_content),
                 ("termcode", self.raw.info.term),
@@ -737,7 +722,9 @@ impl<'a> WrapperTermRequest<'a> {
         let units = poss_class.units.to_string();
 
         process_post_response(
-            self.init_post_request(CHANGE_ENROLL)
+            self.raw
+                .info
+                .req_post(CHANGE_ENROLL)
                 .form(&[
                     ("section", sec_id.as_str()),
                     ("subjCode", ""),
@@ -803,7 +790,9 @@ impl<'a> WrapperTermRequest<'a> {
     pub async fn validate_add_to_plan(&self, plan_options: &PlanAdd<'_>) -> types::Result<bool> {
         let crsc_code = util::get_formatted_course_num(plan_options.course_code.as_ref());
         process_post_response(
-            self.init_post_request(PLAN_EDIT)
+            self.raw
+                .info
+                .req_post(PLAN_EDIT)
                 .form(&[
                     ("section", plan_options.section_id.as_ref()),
                     ("subjcode", plan_options.subject_code.as_ref()),
@@ -888,7 +877,9 @@ impl<'a> WrapperTermRequest<'a> {
         }
 
         process_post_response(
-            self.init_post_request(PLAN_ADD)
+            self.raw
+                .info
+                .req_post(PLAN_ADD)
                 .form(&[
                     ("subjcode", plan_options.subject_code.as_ref()),
                     ("crsecode", crsc_code.as_str()),
@@ -957,7 +948,9 @@ impl<'a> WrapperTermRequest<'a> {
         schedule_name: Option<&str>,
     ) -> types::Result<bool> {
         process_post_response(
-            self.init_post_request(PLAN_REMOVE)
+            self.raw
+                .info
+                .req_post(PLAN_REMOVE)
                 .form(&[
                     ("sectnum", section_id.as_ref()),
                     ("termcode", self.raw.info.term),
@@ -1031,7 +1024,9 @@ impl<'a> WrapperTermRequest<'a> {
         };
 
         process_post_response(
-            self.init_post_request(base_edit_url)
+            self.raw
+                .info
+                .req_post(base_edit_url)
                 .form(&[
                     // These are required
                     ("section", enroll_options.section_id.as_ref()),
@@ -1168,7 +1163,9 @@ impl<'a> WrapperTermRequest<'a> {
         }
 
         process_post_response(
-            self.init_post_request(base_reg_url)
+            self.raw
+                .info
+                .req_post(base_reg_url)
                 .form(&[
                     // These are required
                     ("section", enroll_options.section_id.as_ref()),
@@ -1192,7 +1189,9 @@ impl<'a> WrapperTermRequest<'a> {
 
         // This will always return true
         process_post_response(
-            self.init_post_request(PLAN_REMOVE_ALL)
+            self.raw
+                .info
+                .req_post(PLAN_REMOVE_ALL)
                 .form(&[
                     ("sectnum", enroll_options.section_id.as_ref()),
                     ("termcode", self.raw.info.term),
@@ -1255,7 +1254,9 @@ impl<'a> WrapperTermRequest<'a> {
         };
 
         process_post_response(
-            self.init_post_request(base_reg_url)
+            self.raw
+                .info
+                .req_post(base_reg_url)
                 .form(&[
                     // These parameters are optional
                     ("subjcode", ""),
@@ -1329,7 +1330,9 @@ impl<'a> WrapperTermRequest<'a> {
         }
 
         process_post_response(
-            self.init_post_request(RENAME_SCHEDULE)
+            self.raw
+                .info
+                .req_post(RENAME_SCHEDULE)
                 .form(&[
                     ("termcode", self.raw.info.term),
                     ("oldschedname", old_name.as_ref()),
@@ -1390,7 +1393,9 @@ impl<'a> WrapperTermRequest<'a> {
         }
 
         process_post_response(
-            self.init_post_request(REMOVE_SCHEDULE)
+            self.raw
+                .info
+                .req_post(REMOVE_SCHEDULE)
                 .form(&[
                     ("termcode", self.raw.info.term),
                     ("schedname", schedule_name.as_ref()),
@@ -1558,13 +1563,15 @@ impl<'a> WrapperTermRequest<'a> {
         }
 
         process_post_response(
-            self.init_post_request(match et {
-                Some(_) => EVENT_EDIT,
-                None => EVENT_ADD,
-            })
-            .form(&form_data)
-            .send()
-            .await,
+            self.raw
+                .info
+                .req_post(match et {
+                    Some(_) => EVENT_EDIT,
+                    None => EVENT_ADD,
+                })
+                .form(&form_data)
+                .send()
+                .await,
         )
         .await
     }
@@ -1604,7 +1611,9 @@ impl<'a> WrapperTermRequest<'a> {
     /// ```
     pub async fn remove_event(&self, event_timestamp: impl AsRef<str>) -> types::Result<bool> {
         process_post_response(
-            self.init_post_request(EVENT_REMOVE)
+            self.raw
+                .info
+                .req_post(EVENT_REMOVE)
                 .form(&[
                     ("aetimestamp", event_timestamp.as_ref()),
                     ("termcode", self.raw.info.term),
@@ -1613,25 +1622,5 @@ impl<'a> WrapperTermRequest<'a> {
                 .await,
         )
         .await
-    }
-
-    /// Initializes a POST `RequestBuilder` with the cookies and user agent specified.
-    ///
-    /// # Parameters
-    /// - `url`: The URL to make the request for.
-    ///
-    /// # Returns
-    /// The GET `RequestBuilder`.
-    fn init_post_request<U>(&self, url: U) -> RequestBuilder
-    where
-        U: IntoUrl,
-    {
-        self.raw
-            .info
-            .client
-            .post(url)
-            .header(COOKIE, self.raw.info.cookies)
-            .header(USER_AGENT, self.raw.info.user_agent)
-            .timeout(self.raw.info.timeout)
     }
 }

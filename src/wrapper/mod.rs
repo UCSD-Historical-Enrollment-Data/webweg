@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-use reqwest::header::{COOKIE, USER_AGENT};
-use reqwest::Client;
+use reqwest::header::{CONNECTION, COOKIE, USER_AGENT};
+use reqwest::{Client, IntoUrl, RequestBuilder};
 use serde_json::{json, Value};
 use url::Url;
 
@@ -20,6 +20,91 @@ pub mod requester_term;
 pub mod wrapper_builder;
 mod ww_helper;
 
+/// A trait that can be used to make requests to WebReg.
+pub trait ReqwestClientWrapper<'a> {
+    /// The cookies for this request.
+    ///
+    /// # Returns
+    /// The cookies.
+    fn get_cookies(&'a self) -> &'a str;
+
+    /// The client to be used for this request.
+    ///
+    /// # Returns
+    /// The client.
+    fn get_client(&'a self) -> &'a Client;
+
+    /// The user agent to be used for this request.
+    ///
+    /// # Returns
+    /// The user agent.
+    fn get_user_agent(&'a self) -> &'a str;
+
+    /// The timeout to be used for this request.
+    ///
+    /// # Returns
+    /// The timeout.
+    fn get_timeout(&'a self) -> Duration;
+
+    /// Whether the connection should be closed after the request is completed.
+    ///
+    /// # Returns
+    /// Whether the connection should be closed after the request is completed.
+    fn close_after_request(&'a self) -> bool;
+
+    /// Creates a builder that makes a GET request to the specified URL, with the
+    /// headers already set.
+    ///
+    /// # Parameters
+    /// - `url`: The URL.
+    ///
+    /// # Returns
+    /// The `RequestBuilder`, which can be customized further.
+    fn req_get<U>(&'a self, url: U) -> RequestBuilder
+    where
+        U: IntoUrl,
+    {
+        let mut req = self
+            .get_client()
+            .get(url)
+            .header(COOKIE, self.get_cookies())
+            .header(USER_AGENT, self.get_user_agent())
+            .timeout(self.get_timeout());
+
+        if self.close_after_request() {
+            req = req.header(CONNECTION, "close");
+        }
+
+        req
+    }
+
+    /// Creates a builder that makes a POST request to the specified URL, with the
+    /// headers already set.
+    ///
+    /// # Parameters
+    /// - `url`: The URL.
+    ///
+    /// # Returns
+    /// The `RequestBuilder`, which can be customized further.
+    fn req_post<U>(&'a self, url: U) -> RequestBuilder
+    where
+        U: IntoUrl,
+    {
+        let mut req = self
+            .get_client()
+            .post(url)
+            .header(COOKIE, self.get_cookies())
+            .header(USER_AGENT, self.get_user_agent())
+            .timeout(self.get_timeout());
+
+        if self.close_after_request() {
+            req = req.header(CONNECTION, "close");
+        }
+
+        req
+    }
+}
+
 /// A wrapper for [UCSD's WebReg](https://act.ucsd.edu/webreg2/start). For more information,
 /// please see the README.
 pub struct WebRegWrapper {
@@ -28,6 +113,7 @@ pub struct WebRegWrapper {
     term: String,
     user_agent: String,
     default_timeout: Duration,
+    close_after_request: bool,
 }
 
 impl WebRegWrapper {
@@ -71,6 +157,7 @@ impl WebRegWrapper {
             term: term.into(),
             default_timeout: Duration::from_secs(30),
             user_agent: MY_USER_AGENT.to_owned(),
+            close_after_request: false,
         }
     }
 
@@ -138,15 +225,7 @@ impl WebRegWrapper {
             return Err(WrapperError::GeneralError("Could not get name.".into()));
         }
 
-        Ok(self
-            .client
-            .get(ACC_NAME)
-            .header(COOKIE, &self.cookies)
-            .header(USER_AGENT, MY_USER_AGENT)
-            .send()
-            .await?
-            .text()
-            .await?)
+        Ok(self.req_get(ACC_NAME).send().await?.text().await?)
     }
 
     /// Registers all terms to your current session so that you can freely
@@ -204,25 +283,18 @@ impl WebRegWrapper {
             &[("_", util::get_epoch_time().to_string().as_str())],
         )?;
 
-        process_get_result::<Vec<RawTermListItem>>(
-            self.client
-                .get(url)
-                .header(COOKIE, &self.cookies)
-                .header(USER_AGENT, MY_USER_AGENT)
-                .send()
-                .await,
-        )
-        .await
-        .map(|raw_term_list| {
-            raw_term_list
-                .into_iter()
-                .map(
-                    |RawTermListItem {
-                         seq_id, term_code, ..
-                     }| Term { seq_id, term_code },
-                )
-                .collect()
-        })
+        process_get_result::<Vec<RawTermListItem>>(self.req_get(url).send().await)
+            .await
+            .map(|raw_term_list| {
+                raw_term_list
+                    .into_iter()
+                    .map(
+                        |RawTermListItem {
+                             seq_id, term_code, ..
+                         }| Term { seq_id, term_code },
+                    )
+                    .collect()
+            })
     }
 
     /// Associates a particular term to this current instance of the wrapper.
@@ -273,15 +345,7 @@ impl WebRegWrapper {
             ],
         )?;
 
-        process_get_result::<Value>(
-            self.client
-                .get(status_start_url)
-                .header(COOKIE, &self.cookies)
-                .header(USER_AGENT, MY_USER_AGENT)
-                .send()
-                .await,
-        )
-        .await?;
+        process_get_result::<Value>(self.req_get(status_start_url).send().await).await?;
 
         // Step 2: call eligibility endpoint
         let eligibility_url = Url::parse_with_params(
@@ -294,15 +358,7 @@ impl WebRegWrapper {
             ],
         )?;
 
-        process_get_result::<Value>(
-            self.client
-                .get(eligibility_url)
-                .header(COOKIE, &self.cookies)
-                .header(USER_AGENT, MY_USER_AGENT)
-                .send()
-                .await,
-        )
-        .await?;
+        process_get_result::<Value>(self.req_get(eligibility_url).send().await).await?;
 
         Ok(())
     }
@@ -315,10 +371,7 @@ impl WebRegWrapper {
     /// `true` if the ping was successful and `false` otherwise.
     pub async fn ping_server(&self) -> bool {
         let res = self
-            .client
-            .get(format!("{}?_={}", PING_SERVER, util::get_epoch_time()))
-            .header(COOKIE, &self.cookies)
-            .header(USER_AGENT, MY_USER_AGENT)
+            .req_get(format!("{}?_={}", PING_SERVER, util::get_epoch_time()))
             .send()
             .await;
 
@@ -363,5 +416,27 @@ impl WebRegWrapper {
     /// The requester.
     pub fn default_request(&self) -> WrapperTermRequest {
         WrapperTermRequestBuilder::new_request(self).build_term_parser()
+    }
+}
+
+impl<'a> ReqwestClientWrapper<'a> for WebRegWrapper {
+    fn get_cookies(&'a self) -> &'a str {
+        self.cookies.as_str()
+    }
+
+    fn get_client(&'a self) -> &'a Client {
+        &self.client
+    }
+
+    fn get_user_agent(&'a self) -> &'a str {
+        self.user_agent.as_str()
+    }
+
+    fn get_timeout(&'a self) -> Duration {
+        self.default_timeout
+    }
+
+    fn close_after_request(&'a self) -> bool {
+        self.close_after_request
     }
 }

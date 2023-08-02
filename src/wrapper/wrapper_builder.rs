@@ -23,6 +23,7 @@ pub struct WebRegWrapperBuilder {
     term: Option<String>,
     user_agent: String,
     default_timeout: Duration,
+    close_after_request: bool,
 }
 
 impl WebRegWrapperBuilder {
@@ -38,6 +39,7 @@ impl WebRegWrapperBuilder {
             term: None,
             user_agent: MY_USER_AGENT.to_owned(),
             default_timeout: Duration::from_secs(30),
+            close_after_request: false,
         }
     }
 
@@ -101,6 +103,21 @@ impl WebRegWrapperBuilder {
         self
     }
 
+    /// Whether the client should close the connection after completing the request.
+    ///
+    /// If you are planning on using multiple active cookies for the same wrapper, set
+    /// this to `true`. Otherwise, you might get stale login errors.
+    ///
+    /// # Parameters
+    /// - `close`: Whether to close the connection after completing the request.
+    ///
+    /// # Returns
+    /// The builder.
+    pub fn should_close_after_request(mut self, close: bool) -> Self {
+        self.close_after_request = close;
+        self
+    }
+
     /// Attempts to build the wrapper. To successfully build the wrapper, the cookies and term
     /// must be provided.
     ///
@@ -115,6 +132,7 @@ impl WebRegWrapperBuilder {
                 term,
                 user_agent: self.user_agent,
                 default_timeout: self.default_timeout,
+                close_after_request: self.close_after_request,
             })
         } else {
             None
