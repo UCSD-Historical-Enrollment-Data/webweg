@@ -121,6 +121,22 @@ impl<'a> WrapperTermRequestBuilder<'a> {
         self
     }
 
+    /// Builds the request builder. Note that this function is meant to be called
+    /// internally by one of the two public build functions.
+    ///
+    /// # Returns
+    /// A structure containing the actual request information.
+    fn build(self) -> WrapperTermTempRequest<'a> {
+        WrapperTermTempRequest {
+            cookies: self.cookies,
+            client: self.client,
+            term: self.term,
+            user_agent: self.user_agent,
+            timeout: self.timeout,
+            close_after_request: self.close_after_request,
+        }
+    }
+
     /// Builds the requester that can be used to generally obtain raw responses from WebReg.
     ///
     /// Note that you should use this requester if you want to manually parse the responses
@@ -133,7 +149,7 @@ impl<'a> WrapperTermRequestBuilder<'a> {
     /// # Returns
     /// The raw requester.
     pub fn build_term_raw(self) -> WrapperTermRawRequest<'a> {
-        WrapperTermRawRequest { info: self }
+        WrapperTermRawRequest { info: self.build() }
     }
 
     /// Builds the requester that can be used to make many different calls (GET, POST) to
@@ -148,7 +164,17 @@ impl<'a> WrapperTermRequestBuilder<'a> {
     }
 }
 
-impl<'a> ReqwestClientWrapper<'a> for WrapperTermRequestBuilder<'a> {
+/// A structure that represents information to be used in this temporary request.
+pub(crate) struct WrapperTermTempRequest<'a> {
+    pub(crate) cookies: &'a str,
+    pub(crate) client: &'a Client,
+    pub(crate) term: &'a str,
+    pub(crate) user_agent: &'a str,
+    pub(crate) timeout: Duration,
+    pub(crate) close_after_request: bool,
+}
+
+impl<'a> ReqwestClientWrapper<'a> for WrapperTermTempRequest<'a> {
     fn get_cookies(&'a self) -> &'a str {
         self.cookies
     }

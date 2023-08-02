@@ -18,8 +18,10 @@ use crate::types::{
 use crate::wrapper::input_types::{
     AddType, DayOfWeek, EnrollWaitAdd, EventAdd, ExplicitAddType, GradeOption, PlanAdd, SearchType,
 };
-use crate::wrapper::request_builder::WrapperTermRequestBuilder;
-use crate::wrapper::ww_helper::{extract_text, process_get_text, process_post_response};
+use crate::wrapper::request_builder::WrapperTermTempRequest;
+use crate::wrapper::ww_helper::{
+    associate_term_helper, extract_text, process_get_text, process_post_response,
+};
 use crate::wrapper::ReqwestClientWrapper;
 use crate::ww_parser::{
     build_search_course_url, parse_course_info, parse_enrollment_count, parse_get_events,
@@ -32,7 +34,7 @@ use crate::{types, util};
 /// Keep in mind that this structure only gives you some API access, as these APIs give you
 /// interesting data. For full access, consider using `WrapperTermRequest`.
 pub struct WrapperTermRawRequest<'a> {
-    pub(crate) info: WrapperTermRequestBuilder<'a>,
+    pub(crate) info: WrapperTermTempRequest<'a>,
 }
 
 impl<'a> WrapperTermRawRequest<'a> {
@@ -198,6 +200,16 @@ impl<'a> WrapperTermRawRequest<'a> {
     pub async fn get_schedule_list(&self) -> types::Result<String> {
         let url = Url::parse_with_params(ALL_SCHEDULE, &[("termcode", self.info.term)])?;
         extract_text(self.info.req_get(url).send().await).await
+    }
+
+    /// Associates the term bound by this request to the cookies that are provided
+    /// as part of this overridden request.
+    ///
+    /// # Returns
+    /// A result, where nothing is returned if everything went well and an error is returned
+    /// if something went wrong.
+    pub async fn associate_term(&self) -> types::Result<()> {
+        associate_term_helper(&self.info, self.info.term).await
     }
 }
 
@@ -1622,5 +1634,15 @@ impl<'a> WrapperTermRequest<'a> {
                 .await,
         )
         .await
+    }
+
+    /// Associates the term bound by this request to the cookies that are provided
+    /// as part of this overridden request.
+    ///
+    /// # Returns
+    /// A result, where nothing is returned if everything went well and an error is returned
+    /// if something went wrong.
+    pub async fn associate_term(&self) -> types::Result<()> {
+        associate_term_helper(&self.raw.info, self.raw.info.term).await
     }
 }

@@ -8,10 +8,9 @@ use url::Url;
 use crate::constants::*;
 use crate::raw_types::RawTermListItem;
 use crate::types::{Term, WrapperError};
-use crate::util::get_term_seq_id;
 use crate::wrapper::request_builder::WrapperTermRequestBuilder;
 use crate::wrapper::requester_term::WrapperTermRequest;
-use crate::wrapper::ww_helper::process_get_result;
+use crate::wrapper::ww_helper::{associate_term_helper, process_get_result};
 use crate::{types, util};
 
 pub mod input_types;
@@ -328,39 +327,7 @@ impl WebRegWrapper {
     /// # }
     /// ```
     pub async fn associate_term(&self, term: impl AsRef<str>) -> types::Result<()> {
-        let term = term.as_ref().to_uppercase();
-        let seq_id = get_term_seq_id(&term);
-        if seq_id == 0 {
-            return Err(WrapperError::InputError("term", "term is not valid."));
-        }
-
-        let seqid_str = seq_id.to_string();
-        // Step 1: call get_status_start endpoint
-        let status_start_url = Url::parse_with_params(
-            STATUS_START,
-            &[
-                ("termcode", term.as_str()),
-                ("seqid", seqid_str.as_str()),
-                ("_", util::get_epoch_time().to_string().as_str()),
-            ],
-        )?;
-
-        process_get_result::<Value>(self.req_get(status_start_url).send().await).await?;
-
-        // Step 2: call eligibility endpoint
-        let eligibility_url = Url::parse_with_params(
-            ELIGIBILITY,
-            &[
-                ("termcode", term.as_str()),
-                ("seqid", seqid_str.as_str()),
-                ("logged", "true"),
-                ("_", util::get_epoch_time().to_string().as_str()),
-            ],
-        )?;
-
-        process_get_result::<Value>(self.req_get(eligibility_url).send().await).await?;
-
-        Ok(())
+        associate_term_helper(self, term).await
     }
 
     /// Pings the WebReg server. Presumably, this is the endpoint that is used to ensure that

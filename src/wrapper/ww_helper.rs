@@ -1,10 +1,13 @@
-use crate::constants::VERIFY_FAIL_ERR;
 use reqwest::{Error, Response};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
+use url::Url;
 
-use crate::types;
+use crate::constants::{ELIGIBILITY, STATUS_START, VERIFY_FAIL_ERR};
 use crate::types::WrapperError;
+use crate::util::get_term_seq_id;
+use crate::wrapper::ReqwestClientWrapper;
+use crate::{types, util};
 
 /// Extracts text from the given response, handling the possibility that a bad status code
 /// or a verification error occurs.
@@ -107,4 +110,53 @@ pub(crate) async fn process_post_response(res: Result<Response, Error>) -> types
         });
 
     Err(WrapperError::WebRegError(parsed_str))
+}
+
+/// Associates a particular term to an instance that implements the `ReqwestClientWrapper`
+/// trait. Useful for generalizing by different types of requests.
+///
+/// # Parameters
+/// - `obj`: A reference to an object implementing the `ReqwestClientWrapper` trait.
+/// - `term`: The term to associate with your session cookies.
+///
+/// # Returns
+/// A result, where nothing is returned if everything went well and an
+/// error is returned if something went wrong.
+pub(crate) async fn associate_term_helper<'a>(
+    obj: &'a impl ReqwestClientWrapper<'a>,
+    term: impl AsRef<str>,
+) -> types::Result<()> {
+    let term = term.as_ref().to_uppercase();
+    let seq_id = get_term_seq_id(&term);
+    if seq_id == 0 {
+        return Err(WrapperError::InputError("term", "term is not valid."));
+    }
+
+    let seqid_str = seq_id.to_string();
+    // Step 1: call get_status_start endpoint
+    let status_start_url = Url::parse_with_params(
+        STATUS_START,
+        &[
+            ("termcode", term.as_str()),
+            ("seqid", seqid_str.as_str()),
+            ("_", util::get_epoch_time().to_string().as_str()),
+        ],
+    )?;
+
+    process_get_result::<Value>(obj.req_get(status_start_url).send().await).await?;
+
+    // Step 2: call eligibility endpoint
+    let eligibility_url = Url::parse_with_params(
+        ELIGIBILITY,
+        &[
+            ("termcode", term.as_str()),
+            ("seqid", seqid_str.as_str()),
+            ("logged", "true"),
+            ("_", util::get_epoch_time().to_string().as_str()),
+        ],
+    )?;
+
+    process_get_result::<Value>(obj.req_get(eligibility_url).send().await).await?;
+
+    Ok(())
 }
