@@ -19,8 +19,10 @@ use crate::{types, util};
 /// The result of processing the response.
 pub(crate) async fn extract_text(res: Result<Response, Error>) -> types::Result<String> {
     let r = res?;
-    if !r.status().is_success() {
-        return Err(WrapperError::BadStatusCode(r.status().as_u16()));
+    let status_code = r.status();
+    if !status_code.is_success() {
+        let text = r.text().await.ok();
+        return Err(WrapperError::BadStatusCode(status_code.as_u16(), text));
     }
 
     let text = r.text().await?;
@@ -71,8 +73,10 @@ pub(crate) async fn process_get_result<T: DeserializeOwned>(
 /// - or some error message if an error occurred.
 pub(crate) async fn process_post_response(res: Result<Response, Error>) -> types::Result<bool> {
     let r = res?;
-    if !r.status().is_success() {
-        return Err(WrapperError::BadStatusCode(r.status().as_u16()));
+    let status_code = r.status();
+    if !status_code.is_success() {
+        let text = r.text().await.ok();
+        return Err(WrapperError::BadStatusCode(status_code.as_u16(), text));
     }
 
     let text = r.text().await?;

@@ -636,8 +636,10 @@ impl<'a> WrapperTermRequest<'a> {
             .send()
             .await?;
 
-        if !r.status().is_success() {
-            return Err(WrapperError::BadStatusCode(r.status().as_u16()));
+        let status = r.status();
+        if !status.is_success() {
+            let text = r.text().await.ok();
+            return Err(WrapperError::BadStatusCode(status.as_u16(), text));
         }
 
         let t = r.text().await?;

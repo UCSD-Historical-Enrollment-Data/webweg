@@ -352,9 +352,11 @@ pub enum WrapperError {
     #[error("Serde error occurred: {0}")]
     SerdeError(#[from] serde_json::Error),
 
-    /// Occurs when the wrapper encounters a bad status code.
-    #[error("Unsuccessful status code: {0}")]
-    BadStatusCode(u16),
+    /// Occurs when the wrapper encounters a bad status code. This also includes some
+    /// context as to why the error may occur, although the context is not cleaned so
+    /// it may be very large (e.g., raw HTML).
+    #[error("Unsuccessful status code: {0} (context: {1:?})")]
+    BadStatusCode(u16, Option<String>),
 
     // =============== //
     /// Occurs when an error from WebReg was returned. These are usually errors relating
