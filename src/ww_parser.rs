@@ -9,7 +9,7 @@ use crate::raw_types::{
 };
 use crate::types::{
     CoursePrerequisite, CourseSection, Courses, EnrollmentStatus, Event, Events, Meeting,
-    MeetingDay, PrerequisiteInfo, Schedule, ScheduledSection, WrapperError,
+    MeetingDay, PrerequisiteInfo, Schedule, ScheduledSection, TimeType, WrapperError,
 };
 use crate::util::parse_binary_days;
 use crate::wrapper::input_types::SearchType;
@@ -139,10 +139,14 @@ pub fn parse_schedule(res: Vec<RawScheduledMeeting>) -> types::Result<Schedule> 
                 } else {
                     MeetingDay::Repeated(util::parse_day_code(main.day_code.trim()))
                 },
-                start_min: main.start_time_min,
-                start_hr: main.start_time_hr,
-                end_min: main.end_time_min,
-                end_hr: main.end_time_hr,
+                start_min: TimeType::try_from(main.start_time_min)
+                    .map_err(|_| WrapperError::BadTimeError)?,
+                start_hr: TimeType::try_from(main.start_time_hr)
+                    .map_err(|_| WrapperError::BadTimeError)?,
+                end_min: TimeType::try_from(main.end_time_min)
+                    .map_err(|_| WrapperError::BadTimeError)?,
+                end_hr: TimeType::try_from(main.end_time_hr)
+                    .map_err(|_| WrapperError::BadTimeError)?,
                 building: main.bldg_code.trim().to_string(),
                 room: main.room_code.trim().to_string(),
                 instructors: util::get_instructor_names(&main.person_full_name),
@@ -151,41 +155,57 @@ pub fn parse_schedule(res: Vec<RawScheduledMeeting>) -> types::Result<Schedule> 
 
         // Parse the remaining meetings.
         // Here, we want to parse any midterm and exam meetings.
-        sch_meetings
+        for meeting in sch_meetings
             .iter()
             .filter(|x| {
                 x.sect_code.ends_with("00")
                     && !x.special_meeting.replace("TBA", "").trim().is_empty()
             })
-            .map(|x| Meeting {
-                meeting_type: x.meeting_type.to_string(),
-                meeting_days: MeetingDay::OneTime(x.start_date.to_string()),
-                start_min: x.start_time_min,
-                start_hr: x.start_time_hr,
-                end_min: x.end_time_min,
-                end_hr: x.end_time_hr,
-                building: x.bldg_code.trim().to_string(),
-                room: x.room_code.trim().to_string(),
-                instructors: util::get_instructor_names(&x.person_full_name),
+            .map(|x| -> types::Result<Meeting> {
+                Ok(Meeting {
+                    meeting_type: x.meeting_type.to_string(),
+                    meeting_days: MeetingDay::OneTime(x.start_date.to_string()),
+                    start_min: TimeType::try_from(x.start_time_min)
+                        .map_err(|_| WrapperError::BadTimeError)?,
+                    start_hr: TimeType::try_from(x.start_time_hr)
+                        .map_err(|_| WrapperError::BadTimeError)?,
+                    end_min: TimeType::try_from(x.end_time_min)
+                        .map_err(|_| WrapperError::BadTimeError)?,
+                    end_hr: TimeType::try_from(x.end_time_hr)
+                        .map_err(|_| WrapperError::BadTimeError)?,
+                    building: x.bldg_code.trim().to_string(),
+                    room: x.room_code.trim().to_string(),
+                    instructors: util::get_instructor_names(&x.person_full_name),
+                })
             })
-            .for_each(|meeting| all_meetings.push(meeting));
+        {
+            all_meetings.push(meeting?);
+        }
 
         // Finally, we parse the general meetings.
-        sch_meetings
+        for meeting in sch_meetings
             .iter()
             .filter(|x| !x.sect_code.ends_with("00"))
-            .map(|x| Meeting {
-                meeting_type: x.meeting_type.to_string(),
-                meeting_days: MeetingDay::Repeated(util::parse_day_code(&x.day_code)),
-                start_min: x.start_time_min,
-                start_hr: x.start_time_hr,
-                end_min: x.end_time_min,
-                end_hr: x.end_time_hr,
-                building: x.bldg_code.trim().to_string(),
-                room: x.room_code.trim().to_string(),
-                instructors: util::get_instructor_names(&x.person_full_name),
+            .map(|x| -> types::Result<Meeting> {
+                Ok(Meeting {
+                    meeting_type: x.meeting_type.to_string(),
+                    meeting_days: MeetingDay::Repeated(util::parse_day_code(&x.day_code)),
+                    start_min: TimeType::try_from(x.start_time_min)
+                        .map_err(|_| WrapperError::BadTimeError)?,
+                    start_hr: TimeType::try_from(x.start_time_hr)
+                        .map_err(|_| WrapperError::BadTimeError)?,
+                    end_min: TimeType::try_from(x.end_time_min)
+                        .map_err(|_| WrapperError::BadTimeError)?,
+                    end_hr: TimeType::try_from(x.end_time_hr)
+                        .map_err(|_| WrapperError::BadTimeError)?,
+                    building: x.bldg_code.trim().to_string(),
+                    room: x.room_code.trim().to_string(),
+                    instructors: util::get_instructor_names(&x.person_full_name),
+                })
             })
-            .for_each(|meeting| all_meetings.push(meeting));
+        {
+            all_meetings.push(meeting?);
+        }
 
         // Find the main meeting (the one that you can enroll in). This meeting object has
         // information like how many people are enrolled, capacity, etc. (the others will not).
@@ -290,10 +310,14 @@ pub fn parse_schedule(res: Vec<RawScheduledMeeting>) -> types::Result<Schedule> 
             meetings: vec![Meeting {
                 meeting_type: sch_meetings[0].meeting_type.to_string(),
                 meeting_days: parsed_day_code,
-                start_min: sch_meetings[0].start_time_min,
-                start_hr: sch_meetings[0].start_time_hr,
-                end_min: sch_meetings[0].end_time_min,
-                end_hr: sch_meetings[0].start_time_hr,
+                start_min: TimeType::try_from(sch_meetings[0].start_time_min)
+                    .map_err(|_| WrapperError::BadTimeError)?,
+                start_hr: TimeType::try_from(sch_meetings[0].start_time_hr)
+                    .map_err(|_| WrapperError::BadTimeError)?,
+                end_min: TimeType::try_from(sch_meetings[0].end_time_min)
+                    .map_err(|_| WrapperError::BadTimeError)?,
+                end_hr: TimeType::try_from(sch_meetings[0].start_time_hr)
+                    .map_err(|_| WrapperError::BadTimeError)?,
                 building: sch_meetings[0].bldg_code.trim().to_string(),
                 room: sch_meetings[0].room_code.trim().to_string(),
                 instructors: util::get_instructor_names(&sch_meetings[0].person_full_name),
@@ -433,10 +457,14 @@ pub fn parse_course_info(
                 total_seats: meeting.section_capacity,
                 waitlist_ct: meeting.count_on_waitlist,
                 meetings: vec![Meeting {
-                    start_hr: meeting.start_time_hr,
-                    start_min: meeting.start_time_min,
-                    end_hr: meeting.end_time_hr,
-                    end_min: meeting.end_time_min,
+                    start_hr: TimeType::try_from(meeting.start_time_hr)
+                        .map_err(|_| WrapperError::BadTimeError)?,
+                    start_min: TimeType::try_from(meeting.start_time_min)
+                        .map_err(|_| WrapperError::BadTimeError)?,
+                    end_hr: TimeType::try_from(meeting.end_time_hr)
+                        .map_err(|_| WrapperError::BadTimeError)?,
+                    end_min: TimeType::try_from(meeting.end_time_min)
+                        .map_err(|_| WrapperError::BadTimeError)?,
                     meeting_type: m_type.to_string(),
                     meeting_days: m_days,
                     building: meeting.bldg_code.trim().to_string(),
@@ -548,26 +576,33 @@ pub fn parse_course_info(
         // Define a closure that takes in a slice `from` (which is a slice of all meetings that
         // we want to read in) and a vector `to` (which is where we want to write these
         // meetings to).
-        let process_meetings = |from: &[&RawWebRegMeeting], to: &mut Vec<Meeting>| {
-            for meeting in from {
-                let (m_m_type, m_days) = util::parse_meeting_type_date(meeting);
+        let process_meetings =
+            |from: &[&RawWebRegMeeting], to: &mut Vec<Meeting>| -> types::Result<()> {
+                for meeting in from {
+                    let (m_m_type, m_days) = util::parse_meeting_type_date(meeting);
 
-                to.push(Meeting {
-                    meeting_type: m_m_type.to_string(),
-                    meeting_days: m_days,
-                    building: meeting.bldg_code.trim().to_string(),
-                    room: meeting.room_code.trim().to_string(),
-                    start_hr: meeting.start_time_hr,
-                    start_min: meeting.start_time_min,
-                    end_hr: meeting.end_time_hr,
-                    end_min: meeting.end_time_min,
-                    // These are instructors specifically assigned to this meeting. For most
-                    // cases, these will be the same instructors assigned to the lecture
-                    // meetings.
-                    instructors: util::get_instructor_names(&meeting.person_full_name),
-                });
-            }
-        };
+                    to.push(Meeting {
+                        meeting_type: m_m_type.to_string(),
+                        meeting_days: m_days,
+                        building: meeting.bldg_code.trim().to_string(),
+                        room: meeting.room_code.trim().to_string(),
+                        start_hr: TimeType::try_from(meeting.start_time_hr)
+                            .map_err(|_| WrapperError::BadTimeError)?,
+                        start_min: TimeType::try_from(meeting.start_time_min)
+                            .map_err(|_| WrapperError::BadTimeError)?,
+                        end_hr: TimeType::try_from(meeting.end_time_hr)
+                            .map_err(|_| WrapperError::BadTimeError)?,
+                        end_min: TimeType::try_from(meeting.end_time_min)
+                            .map_err(|_| WrapperError::BadTimeError)?,
+                        // These are instructors specifically assigned to this meeting. For most
+                        // cases, these will be the same instructors assigned to the lecture
+                        // meetings.
+                        instructors: util::get_instructor_names(&meeting.person_full_name),
+                    });
+                }
+
+                Ok(())
+            };
 
         // If there are no child meetings, then this means we only have lecture + exams.
         if entry.child_meetings.is_empty() {
@@ -593,7 +628,7 @@ pub fn parse_course_info(
             };
 
             // Then, iterate through the rest of the general meetings.
-            process_meetings(&entry.general_meetings, &mut section.meetings);
+            process_meetings(&entry.general_meetings, &mut section.meetings)?;
             // Finally, add it to the sections.
             sections.push(section);
             continue;
@@ -622,8 +657,8 @@ pub fn parse_course_info(
             };
 
             // Iterate through the general and child meetings.
-            process_meetings(&entry.general_meetings, &mut section.meetings);
-            process_meetings(&[c_meeting], &mut section.meetings);
+            process_meetings(&entry.general_meetings, &mut section.meetings)?;
+            process_meetings(&[c_meeting], &mut section.meetings)?;
             // Finally, add it to the sections as usual.
             sections.push(section);
         }
@@ -778,10 +813,10 @@ pub(crate) fn parse_get_events(raw_events: Vec<RawEvent>) -> types::Result<Event
 
         res.push(Event {
             location: event.location,
-            start_hr: start_hr as i16,
-            start_min: start_min as i16,
-            end_hr: end_hr as i16,
-            end_min: end_min as i16,
+            start_hr,
+            start_min,
+            end_hr,
+            end_min,
             name: event.description,
             days: parse_binary_days(&event.days),
             timestamp: event.time_stamp,

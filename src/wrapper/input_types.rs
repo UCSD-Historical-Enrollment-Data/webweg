@@ -1,3 +1,4 @@
+use crate::types::TimeType;
 use std::borrow::Cow;
 
 /// Use this struct to add more information regarding the section that you want to enroll/waitlist
@@ -303,16 +304,16 @@ pub struct EventAdd<'a> {
     pub event_days: Vec<DayOfWeek>,
     /// The hour start time. For example, if the event starts at
     /// 3:50 PM, use `15` (since `12 + 3 = 15`).
-    pub start_hr: i16,
+    pub start_hr: TimeType,
     /// The minute start time. For example, if the event starts at
     /// 3:50 PM, use `50`.
-    pub start_min: i16,
+    pub start_min: TimeType,
     /// The hour end time. For example, if the event ends at 3:50 PM,
     /// use `15` (since `12 + 3 = 15`).
-    pub end_hr: i16,
+    pub end_hr: TimeType,
     /// The minute end time. For example, if the event ends at 3:50 PM,
     /// use `50`.
-    pub end_min: i16,
+    pub end_min: TimeType,
 }
 
 impl<'a> EventAdd<'a> {
@@ -330,10 +331,10 @@ pub struct EventAddBuilder<'a> {
     event_name: Option<Cow<'a, str>>,
     location: Option<Cow<'a, str>>,
     event_days: Vec<DayOfWeek>,
-    start_hr: Option<i16>,
-    start_min: Option<i16>,
-    end_hr: Option<i16>,
-    end_min: Option<i16>,
+    start_hr: Option<TimeType>,
+    start_min: Option<TimeType>,
+    end_hr: Option<TimeType>,
+    end_min: Option<TimeType>,
 }
 
 impl<'a> EventAddBuilder<'a> {
@@ -398,7 +399,7 @@ impl<'a> EventAddBuilder<'a> {
     /// # Return
     /// The builder. The builder will only be modified if the `hr` and `min` arguments
     /// are valid (`0 <= hr <= 23` AND `0 <= min <= 59`).
-    pub fn with_start_time(mut self, hr: i16, min: i16) -> Self {
+    pub fn with_start_time(mut self, hr: TimeType, min: TimeType) -> Self {
         if (0..=23).contains(&hr) && (0..=59).contains(&min) {
             self.start_hr = Some(hr);
             self.start_min = Some(min);
@@ -416,7 +417,7 @@ impl<'a> EventAddBuilder<'a> {
     /// # Return
     /// The builder. The builder will only be modified if the `hr` and `min` arguments
     /// are valid (`0 <= hr <= 23` AND `0 <= min <= 59`).
-    pub fn with_end_time(mut self, hr: i16, min: i16) -> Self {
+    pub fn with_end_time(mut self, hr: TimeType, min: TimeType) -> Self {
         if (0..=23).contains(&hr) && (0..=59).contains(&min) {
             self.end_hr = Some(hr);
             self.end_min = Some(min);
@@ -523,8 +524,8 @@ pub struct SearchRequestBuilder {
     pub title: Option<String>,
     pub level_filter: u32,
     pub days: u32,
-    pub start_time: Option<(u32, u32)>,
-    pub end_time: Option<(u32, u32)>,
+    pub start_time: Option<(TimeType, TimeType)>,
+    pub end_time: Option<(TimeType, TimeType)>,
     pub only_open: bool,
 }
 
@@ -679,7 +680,7 @@ impl SearchRequestBuilder {
     ///
     /// # Returns
     /// The `SearchRequestBuilder`
-    pub fn set_start_time(mut self, hour: u32, min: u32) -> Self {
+    pub fn set_start_time(mut self, hour: TimeType, min: TimeType) -> Self {
         if hour > 23 || min > 59 {
             return self;
         }
@@ -696,7 +697,7 @@ impl SearchRequestBuilder {
     ///
     /// # Returns
     /// The `SearchRequestBuilder`
-    pub fn set_end_time(mut self, hour: u32, min: u32) -> Self {
+    pub fn set_end_time(mut self, hour: TimeType, min: TimeType) -> Self {
         if hour > 23 || min > 59 {
             return self;
         }

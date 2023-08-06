@@ -19,6 +19,9 @@ pub type SearchResult = Vec<SearchResultItem>;
 /// Represents a vector of all events.
 pub type Events = Vec<Event>;
 
+/// The type that will be used to represent hours and minutes.
+pub type TimeType = u32;
+
 /// Represents a single search result item from WebReg.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub struct SearchResultItem {
@@ -114,13 +117,13 @@ pub struct Meeting {
     #[serde(rename = "meeting_days")]
     pub meeting_days: MeetingDay,
     /// The start hour. For example, if the meeting starts at 14:15, this would be `14`.
-    pub start_hr: i16,
+    pub start_hr: TimeType,
     /// The start minute. For example, if the meeting starts at 14:15, this would be `15`.
-    pub start_min: i16,
+    pub start_min: TimeType,
     /// The end hour. For example, if the meeting ends at 15:05, this would be `15`.
-    pub end_hr: i16,
+    pub end_hr: TimeType,
     /// The end minute. For example, if the meeting ends at 15:05, this would be `5`.
-    pub end_min: i16,
+    pub end_min: TimeType,
     /// The building where this meeting will occur. For example, if the meeting is held in
     /// `CENTR 115`, then this would be `CENTR`.
     pub building: String,
@@ -303,13 +306,13 @@ pub struct Event {
     /// The location of the event.
     pub location: String,
     /// The start hour. For example, if the meeting starts at 14:15, this would be `14`.
-    pub start_hr: i16,
+    pub start_hr: TimeType,
     /// The start minute. For example, if the meeting starts at 14:15, this would be `15`.
-    pub start_min: i16,
+    pub start_min: TimeType,
     /// The end hour. For example, if the meeting ends at 15:05, this would be `15`.
-    pub end_hr: i16,
+    pub end_hr: TimeType,
     /// The end minute. For example, if the meeting ends at 15:05, this would be `5`.
-    pub end_min: i16,
+    pub end_min: TimeType,
     /// The name of the event.
     pub name: String,
     /// The days that this event will occur.
@@ -357,6 +360,11 @@ pub enum WrapperError {
     /// it may be very large (e.g., raw HTML).
     #[error("Unsuccessful status code: {0} (context: {1:?})")]
     BadStatusCode(u16, Option<String>),
+
+    /// Occurs if there's a problem with parsing a time unit (minute or hour). For example,
+    /// if hour was a negative value, then you can expect this error to occur.
+    #[error("A time value, either minute or hour, is not formatted correctly.")]
+    BadTimeError,
 
     // =============== //
     /// Occurs when an error from WebReg was returned. These are usually errors relating
