@@ -197,12 +197,12 @@ pub fn parse_schedule(res: Vec<RawScheduledMeeting>) -> types::Result<Schedule> 
             None => {
                 // If we cannot find the meeting, then assume the schedule is deformed and return.
                 return if sch_meetings.is_empty() {
-                    Err(WrapperError::GeneralError(format!(
+                    Err(WrapperError::WrapperParsingError(format!(
                         "{} {} is deformed",
                         sch_meetings[0].sect_code, sch_meetings[0].course_code
                     )))
                 } else {
-                    Err(WrapperError::GeneralError(
+                    Err(WrapperError::WrapperParsingError(
                         "schedule is deformed".to_owned(),
                     ))
                 };
@@ -477,11 +477,9 @@ pub fn parse_course_info(
     let mut map: HashMap<char, GroupedSection<RawWebRegMeeting>> = HashMap::new();
     for meeting in &unprocessed_meetings {
         // Get the section family, which *should* exist (i.e., no panic should occur here).
-        let sec_fam = meeting
-            .sect_code
-            .chars()
-            .next()
-            .ok_or_else(|| WrapperError::GeneralError("Non-existent section code.".into()))?;
+        let sec_fam = meeting.sect_code.chars().next().ok_or_else(|| {
+            WrapperError::WrapperParsingError("Non-existent section code.".into())
+        })?;
 
         let entry = map.entry(sec_fam).or_insert(GroupedSection {
             child_meetings: vec![],

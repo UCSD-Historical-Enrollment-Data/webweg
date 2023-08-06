@@ -336,33 +336,64 @@ impl Display for Event {
 #[derive(Error, Debug)]
 pub enum WrapperError {
     /// Occurs if there was an error encountered by the reqwest library.
-    #[error("request error occurred: {0}")]
+    #[error("Request error occurred: {0}")]
     RequestError(#[from] reqwest::Error),
 
-    /// Occurs when there was an error with serde.
-    #[error("serde error occurred: {0}")]
-    SerdeError(#[from] serde_json::Error),
-
-    /// Occurs when the wrapper encounters a bad status code
-    #[error("unsuccessful status code: {0}")]
-    BadStatusCode(u16),
-
-    /// Occurs when an error from WebReg was returned.
-    #[error("error from WebReg: {0}")]
-    WebRegError(String),
+    /// Occurs when there was an error parsing the URL.
+    #[error("Malformed url: {0}")]
+    UrlParseError(#[from] url::ParseError),
 
     /// Occurs when the given input is not valid.
-    #[error("invalid input for '{0}' provided: {1}")]
+    #[error("Invalid input for '{0}' provided: {1}")]
     InputError(&'static str, &'static str),
 
-    /// The general error, given when the particular error doesn't
-    /// fit into any of the other categories.
-    #[error("error: {0}")]
-    GeneralError(String),
+    /// Occurs when there was an error with serde. This error will most likely occur
+    /// if you attempt to make a request to WebReg but your session isn't valid.
+    #[error("Serde error occurred: {0}")]
+    SerdeError(#[from] serde_json::Error),
 
-    /// Occurs when there was an error parsing the URL.
-    #[error("malformed url: {0}")]
-    UrlParseError(#[from] url::ParseError),
+    /// Occurs when the wrapper encounters a bad status code.
+    #[error("Unsuccessful status code: {0}")]
+    BadStatusCode(u16),
+
+    // =============== //
+    /// Occurs when an error from WebReg was returned. These are usually errors relating
+    /// to you not being able to perform some operation (e.g, attempting to enroll in a
+    /// class that you aren't able to enroll in).
+    #[error("Error from WebReg: {0}")]
+    WebRegError(String),
+
+    /// Occurs if a section that you're trying to look for isn't available.
+    #[error("Section ID not found: {0} (context: {1}")]
+    SectionIdNotFound(String, SectionIdNotFoundContext),
+
+    /// Occurs if there's an error with the parsing logic.
+    #[error("An error occurred when parsing the response from WebReg: {0}")]
+    WrapperParsingError(String),
+
+    /// Occurs when your cookies may have expired.
+    #[error("The current session is not valid. Are your cookies valid?")]
+    SessionNotValid,
+}
+
+/// An enum to be used for giving more context into where the section ID wasn't found.
+#[derive(Debug)]
+pub enum SectionIdNotFoundContext {
+    /// Whether the section ID wasn't found in your schedule (i.e., you didn't enroll in
+    /// that section).
+    Schedule,
+    /// Whether the section ID wasn't found in the catalog (i.e., it's not offered
+    /// in the specified term).
+    Catalog,
+}
+
+impl Display for SectionIdNotFoundContext {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SectionIdNotFoundContext::Schedule => write!(f, "Schedule"),
+            SectionIdNotFoundContext::Catalog => write!(f, "Offered"),
+        }
+    }
 }
 
 /// A term that is available on WebReg.

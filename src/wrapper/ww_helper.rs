@@ -26,7 +26,7 @@ pub(crate) async fn extract_text(res: Result<Response, Error>) -> types::Result<
     let text = r.text().await?;
     if text.contains(VERIFY_FAIL_ERR) {
         Err(WrapperError::WebRegError(
-            "verification error; did you pick the wrong term?".into(),
+            "Verification error: register your term using the `associate_term` function.".into(),
         ))
     } else {
         Ok(text)

@@ -13,7 +13,8 @@ use crate::raw_types::{
     RawWebRegMeeting, RawWebRegSearchResultItem,
 };
 use crate::types::{
-    Courses, Events, PrerequisiteInfo, Schedule, SearchResult, SearchResultItem, WrapperError,
+    Courses, Events, PrerequisiteInfo, Schedule, SearchResult, SearchResultItem,
+    SectionIdNotFoundContext, WrapperError,
 };
 use crate::wrapper::input_types::{
     AddType, DayOfWeek, EnrollWaitAdd, EventAdd, ExplicitAddType, GradeOption, PlanAdd, SearchType,
@@ -727,7 +728,12 @@ impl<'a> WrapperTermRequest<'a> {
         // don't care about previous poss_class
         let poss_class = match poss_class {
             Some(s) => s,
-            None => return Err(WrapperError::GeneralError("Class not found.".into())),
+            None => {
+                return Err(WrapperError::SectionIdNotFound(
+                    section_id.into(),
+                    SectionIdNotFoundContext::Schedule,
+                ))
+            }
         };
 
         let sec_id = poss_class.section_id.to_string();
@@ -1070,22 +1076,18 @@ impl<'a> WrapperTermRequest<'a> {
             .await?;
 
         if search_res.is_empty() {
-            return Err(WrapperError::GeneralError(format!(
-                "{section_id} not found."
-            )));
+            return Err(WrapperError::SectionIdNotFound(
+                section_id.into(),
+                SectionIdNotFoundContext::Catalog,
+            ));
         }
 
         let subject_code = search_res[0].subj_code.trim();
         let course_code = search_res[0].course_code.trim();
 
-        let enroll_count_info = self.get_enrollment_count(subject_code, course_code).await?;
-        if enroll_count_info.is_empty() {
-            return Err(WrapperError::GeneralError(format!(
-                "{section_id} not found."
-            )));
-        }
-
-        let section_info = enroll_count_info
+        let section_info = self
+            .get_enrollment_count(subject_code, course_code)
+            .await?
             .into_iter()
             .find(|sec| sec.section_id == section_id);
         if let Some(info) = section_info {
@@ -1095,9 +1097,11 @@ impl<'a> WrapperTermRequest<'a> {
                 Ok(ExplicitAddType::Waitlist)
             }
         } else {
-            Err(WrapperError::GeneralError(format!(
-                "{section_id} not found."
-            )))
+            // In theory, this should never hit.
+            Err(WrapperError::SectionIdNotFound(
+                section_id.into(),
+                SectionIdNotFoundContext::Catalog,
+            ))
         }
     }
 

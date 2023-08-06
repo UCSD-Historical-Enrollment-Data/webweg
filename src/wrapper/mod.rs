@@ -221,7 +221,7 @@ impl WebRegWrapper {
     /// ```
     pub async fn get_account_name(&self) -> types::Result<String> {
         if !self.is_valid().await {
-            return Err(WrapperError::GeneralError("Could not get name.".into()));
+            return Err(WrapperError::SessionNotValid);
         }
 
         Ok(self.req_get(ACC_NAME).send().await?.text().await?)
