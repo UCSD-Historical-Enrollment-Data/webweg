@@ -1,0 +1,14 @@
+[
+  {
+    "SUBJECT_CODE": "MATH",
+    "PREREQ_SEQ_ID": "1",
+    "CRSE_TITLE": "Calculus/Science & Engineering",
+    "COURSE_CODE": " 20B ",
+    "GRADE_SEQ_ID": "450",
+    "TYPE": "COURSE"
+  },
+  {
+    "TEST_TITLE": "AP-Math BC                    ",
+    "TYPE": "TEST"
+  }
+]

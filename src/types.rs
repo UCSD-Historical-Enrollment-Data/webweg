@@ -1,9 +1,50 @@
-use std::borrow::Cow;
+use std::fmt::{Display, Formatter};
 
 use serde::Serialize;
+use thiserror::Error;
+
+/// The generic type is the return value. Otherwise, regardless of request type,
+/// we're just returning the error string if there is an error.
+pub type Result<T, E = WrapperError> = std::result::Result<T, E>;
+
+/// The person's schedule.
+pub type Schedule = Vec<ScheduledSection>;
+
+/// All courses with the specified subject code & course number.
+pub type Courses = Vec<CourseSection>;
+
+/// Represents a search result from WebReg.
+pub type SearchResult = Vec<SearchResultItem>;
+
+/// Represents a vector of all events.
+pub type Events = Vec<Event>;
+
+/// The type that will be used to represent hours and minutes.
+pub type TimeType = u32;
+
+/// Represents a single search result item from WebReg.
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
+pub struct SearchResultItem {
+    /// The subject code. For example, `CSE` or `MATH` are both possible option.
+    pub subj_code: String,
+    /// The course code. For example, `100B`.
+    pub course_code: String,
+    /// The course title. For example, `Abstract Algebra II`.
+    pub course_title: String,
+}
+
+impl Display for SearchResultItem {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "{} {} - {}",
+            self.subj_code, self.course_code, self.course_title
+        )
+    }
+}
 
 /// A section, which consists of a lecture, usually a discussion, and usually a final.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub struct CourseSection {
     /// The subject, course ID. For example, `CSE 100`.
     pub subj_course_id: String,
@@ -26,8 +67,6 @@ pub struct CourseSection {
     pub waitlist_ct: i64,
     /// All meetings.
     pub meetings: Vec<Meeting>,
-    /// Whether you need to waitlist this.
-    pub needs_waitlist: bool,
     /// Whether this is visible on WebReg
     pub is_visible: bool,
 }
@@ -46,32 +85,30 @@ impl CourseSection {
     }
 }
 
-impl ToString for CourseSection {
-    fn to_string(&self) -> String {
-        let mut s = format!(
-            "[{}] [{} / {}] {} - Avail.: {}, Enroll.: {}, Total: {} (WL: {}) [{}]\n",
-            self.subj_course_id,
-            self.section_code,
-            self.section_id,
-            self.all_instructors.join(" & "),
-            self.available_seats,
-            self.enrolled_ct,
-            self.total_seats,
-            self.waitlist_ct,
-            if self.has_seats() { "E" } else { "W" }
-        );
-
+impl Display for CourseSection {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "[{} / {}] {}",
+            self.section_code, self.section_id, self.subj_course_id
+        )?;
+        writeln!(f, "\tInstructors: [{}]", self.all_instructors.join(", "))?;
+        writeln!(f, "\tEnrolled: {}", self.enrolled_ct)?;
+        writeln!(f, "\tAvailable: {}", self.available_seats)?;
+        writeln!(f, "\tWaitlist: {}", self.waitlist_ct)?;
+        writeln!(f, "\tTotal Seats: {}", self.total_seats)?;
+        writeln!(f, "\tCan Enroll? {}", self.has_seats())?;
+        writeln!(f, "\tMeeting Information:")?;
         for meeting in &self.meetings {
-            s.push_str(&meeting.to_string());
-            s.push('\n');
+            write!(f, "\t\t{meeting}")?;
         }
 
-        s
+        Ok(())
     }
 }
 
 /// A meeting. Usually represents a lecture, final exam, discussion, and more.
-#[derive(Debug, Clone, Serialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub struct Meeting {
     /// The meeting type. For example, this can be `LE`, `FI`, `DI`, etc.
     pub meeting_type: String,
@@ -80,13 +117,13 @@ pub struct Meeting {
     #[serde(rename = "meeting_days")]
     pub meeting_days: MeetingDay,
     /// The start hour. For example, if the meeting starts at 14:15, this would be `14`.
-    pub start_hr: i16,
+    pub start_hr: TimeType,
     /// The start minute. For example, if the meeting starts at 14:15, this would be `15`.
-    pub start_min: i16,
+    pub start_min: TimeType,
     /// The end hour. For example, if the meeting ends at 15:05, this would be `15`.
-    pub end_hr: i16,
+    pub end_hr: TimeType,
     /// The end minute. For example, if the meeting ends at 15:05, this would be `5`.
-    pub end_min: i16,
+    pub end_min: TimeType,
     /// The building where this meeting will occur. For example, if the meeting is held in
     /// `CENTR 115`, then this would be `CENTR`.
     pub building: String,
@@ -98,7 +135,7 @@ pub struct Meeting {
 }
 
 /// An enum that represents the meeting days for a section meeting.
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum MeetingDay {
     /// The meeting is repeated. In this case, each element in the vector will be one of the
@@ -111,71 +148,29 @@ pub enum MeetingDay {
     None,
 }
 
-impl Meeting {
-    /// Returns a flat string representation of this `Meeting`. One example of a flat string might
-    /// look like
-    /// ```txt
-    /// MWF LE 13:00 - 13:50 CENTR 115 .. OTHER_INSTRUCTOR_1 & ... & OTHER_INSTRUCTOR_n
-    /// ```
-    ///
-    /// This flat string is generally useful when needing to store meeting data in a CSV or TSV
-    /// file.
-    ///
-    /// # Returns
-    /// A flat string representation of this `Meeting`. Useful for CSV files.
-    pub fn to_flat_str(&self) -> String {
-        let mut s = String::new();
-        s.push_str(&match &self.meeting_days {
-            MeetingDay::Repeated(r) => r.join(""),
-            MeetingDay::OneTime(r) => r.to_string(),
-            MeetingDay::None => "N/A".to_string(),
-        });
+impl Display for Meeting {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}] ", self.meeting_type)?;
+        match &self.meeting_days {
+            MeetingDay::Repeated(r) => write!(f, "{} ", r.join("")),
+            MeetingDay::OneTime(r) => write!(f, "{} ", r),
+            MeetingDay::None => write!(f, "N/A "),
+        }?;
 
-        s.push(' ');
-        s.push_str(self.meeting_type.as_str());
-        s.push(' ');
-        s.push_str(&format!(
-            "{}:{:02}-{}:{:02}",
+        write!(
+            f,
+            "at {}:{:02} - {}:{:02} ",
             self.start_hr, self.start_min, self.end_hr, self.end_min
-        ));
+        )?;
+        writeln!(f, "in {} {}", self.building, self.room)?;
 
-        s.push(' ');
-        s.push_str(&format!("{} {}", self.building, self.room));
-
-        s.push_str("..");
-        s.push_str(&self.instructors.join(" & "));
-
-        s
-    }
-}
-
-impl ToString for Meeting {
-    fn to_string(&self) -> String {
-        let meeting_days_display: Cow<'_, str> = match &self.meeting_days {
-            MeetingDay::Repeated(r) => r.join("").into(),
-            MeetingDay::OneTime(r) => r.into(),
-            MeetingDay::None => "N/A".into(),
-        };
-
-        let time_range = format!(
-            "{}:{:02} - {}:{:02}",
-            self.start_hr, self.start_min, self.end_hr, self.end_min
-        );
-        format!(
-            "\t[{}] {} at {} in {} {} [{}]",
-            self.meeting_type,
-            meeting_days_display,
-            time_range,
-            self.building,
-            self.room,
-            self.instructors.join(" & ")
-        )
+        Ok(())
     }
 }
 
 /// A section that is currently in your schedule. Note that this can either be a course that you
 /// are enrolled in, waitlisted for, or planned.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub struct ScheduledSection {
     /// The section ID, for example `79903`.
     pub section_id: String,
@@ -198,7 +193,7 @@ pub struct ScheduledSection {
     /// All instructors that appear in all of the meetings.
     pub all_instructors: Vec<String>,
     /// The number of units that you are taking this course for.
-    pub units: f32,
+    pub units: i64,
     /// Your enrollment status.
     #[serde(rename = "enrolled_status")]
     pub enrolled_status: EnrollmentStatus,
@@ -208,44 +203,47 @@ pub struct ScheduledSection {
     pub meetings: Vec<Meeting>,
 }
 
-impl ToString for ScheduledSection {
-    fn to_string(&self) -> String {
-        let status: Cow<'_, str> = match self.enrolled_status {
-            EnrollmentStatus::Enrolled => "Enrolled".into(),
-            EnrollmentStatus::Waitlist { waitlist_pos } => {
-                format!("Waitlisted {}/{}", waitlist_pos, self.waitlist_ct).into()
-            }
-            EnrollmentStatus::Planned => "Planned".into(),
-            EnrollmentStatus::Unknown => "Unknown".into(),
-        };
-
-        let mut s = format!(
-            "[{} / {}] {} ({} {}) with {} - {} ({} Units, {} Grading, Avail.: {}, Enroll.: {}, Total: {})\n",
+impl Display for ScheduledSection {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "[{} / {}] {} {}: {}",
             self.section_code,
             self.section_id,
-            self.course_title,
-            self.subject_code,
+            self.section_code,
             self.course_code,
-            self.all_instructors.join(" & "),
-            status,
-            self.units,
-            self.grade_option,
-            self.available_seats,
-            self.enrolled_count,
-            self.section_capacity
-        );
+            self.course_title
+        )?;
+        writeln!(f, "\tInstructors: [{}]", self.all_instructors.join(", "))?;
+        writeln!(f, "\tCourse Enrollment Information:")?;
+        writeln!(f, "\t\tEnrolled: {}", self.enrolled_count)?;
+        writeln!(f, "\t\tAvailable: {}", self.available_seats)?;
+        writeln!(f, "\t\tWaitlist: {}", self.waitlist_ct)?;
+        writeln!(f, "\t\tTotal Seats: {}", self.section_capacity)?;
+        writeln!(f, "\tEnrollment Information:")?;
+        write!(f, "\t\tStatus: ")?;
+        match self.enrolled_status {
+            EnrollmentStatus::Enrolled => writeln!(f, "Enrolled"),
+            EnrollmentStatus::Waitlist { waitlist_pos } => {
+                writeln!(f, "Waitlisted (Position {waitlist_pos})")
+            }
+            EnrollmentStatus::Planned => writeln!(f, "Planned"),
+            EnrollmentStatus::Unknown => writeln!(f, "Unknown"),
+        }?;
 
+        writeln!(f, "\t\tUnits: {}", self.units)?;
+        writeln!(f, "\t\tGrade Option: {}", self.grade_option)?;
+        writeln!(f, "\tMeeting Information:")?;
         for meeting in &self.meetings {
-            s.push_str(&meeting.to_string());
-            s.push('\n');
+            write!(f, "\t\t{meeting}")?;
         }
 
-        s
+        Ok(())
     }
 }
 
 /// An enum that represents your enrollment status.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 #[serde(tag = "enroll_status")]
 pub enum EnrollmentStatus {
     Enrolled,
@@ -255,9 +253,9 @@ pub enum EnrollmentStatus {
 }
 
 /// A prerequisite for a course.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub struct PrerequisiteInfo {
-    /// Any course prerequsiites. This is a vector of vector of prerequisites,
+    /// Any course prerequisites. This is a vector of vector of prerequisites,
     /// where each vector contains one or more prerequisites. Any prerequisites
     /// in the same vector means that you only need one of those prerequisites to
     /// fulfill that requirement.
@@ -276,7 +274,7 @@ pub struct PrerequisiteInfo {
 }
 
 /// A course prerequisite.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub struct CoursePrerequisite {
     /// The subject, course ID. For example, `CSE 100`.
     pub subj_course_id: String,
@@ -285,23 +283,134 @@ pub struct CoursePrerequisite {
     pub course_title: String,
 }
 
+impl CoursePrerequisite {
+    /// Creates a new `CoursePrerequisite` object with the specified course information.
+    ///
+    /// # Parameters
+    /// - `subj_course_id`: The subject, course ID (e.g., `CSE 100`)
+    /// - `course_title`: The course title (e.g., `Advanced Data Structures`).
+    ///
+    /// # Returns
+    /// The new `CoursePrerequisite` object.
+    pub fn new(subj_course_id: impl Into<String>, course_title: impl Into<String>) -> Self {
+        Self {
+            subj_course_id: subj_course_id.into(),
+            course_title: course_title.into(),
+        }
+    }
+}
+
 /// An event on WebReg.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Eq, PartialEq, Hash)]
 pub struct Event {
     /// The location of the event.
     pub location: String,
     /// The start hour. For example, if the meeting starts at 14:15, this would be `14`.
-    pub start_hr: i16,
+    pub start_hr: TimeType,
     /// The start minute. For example, if the meeting starts at 14:15, this would be `15`.
-    pub start_min: i16,
+    pub start_min: TimeType,
     /// The end hour. For example, if the meeting ends at 15:05, this would be `15`.
-    pub end_hr: i16,
+    pub end_hr: TimeType,
     /// The end minute. For example, if the meeting ends at 15:05, this would be `5`.
-    pub end_min: i16,
+    pub end_min: TimeType,
     /// The name of the event.
     pub name: String,
     /// The days that this event will occur.
     pub days: Vec<String>,
-    /// The time when this event was created.
+    /// The time when this event was created. Use this to replace or delete an event.
     pub timestamp: String,
+}
+
+impl Display for Event {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "[Event] {}", self.name)?;
+        writeln!(f, "\tLocation: {}", self.location)?;
+        writeln!(f, "\tDay of Week: {}", self.days.join(""))?;
+        writeln!(
+            f,
+            "\tTime: {}:{:02} - {}:{:02}",
+            self.start_hr, self.start_min, self.end_hr, self.end_min
+        )?;
+        writeln!(f, "\tTimestamp: {}", self.timestamp)?;
+        Ok(())
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum WrapperError {
+    /// Occurs if there was an error encountered by the reqwest library.
+    #[error("Request error occurred: {0}")]
+    RequestError(#[from] reqwest::Error),
+
+    /// Occurs when there was an error parsing the URL.
+    #[error("Malformed url: {0}")]
+    UrlParseError(#[from] url::ParseError),
+
+    /// Occurs when the given input is not valid.
+    #[error("Invalid input for '{0}' provided: {1}")]
+    InputError(&'static str, &'static str),
+
+    /// Occurs when there was an error with serde. This error will most likely occur
+    /// if you attempt to make a request to WebReg but your session isn't valid.
+    #[error("Serde error occurred: {0}")]
+    SerdeError(#[from] serde_json::Error),
+
+    /// Occurs when the wrapper encounters a bad status code. This also includes some
+    /// context as to why the error may occur, although the context is not cleaned so
+    /// it may be very large (e.g., raw HTML).
+    #[error("Unsuccessful status code: {0} (context: {1:?})")]
+    BadStatusCode(u16, Option<String>),
+
+    /// Occurs if there's a problem with parsing a time unit (minute or hour). For example,
+    /// if hour was a negative value, then you can expect this error to occur.
+    #[error("A time value, either minute or hour, is not formatted correctly.")]
+    BadTimeError,
+
+    // =============== //
+    /// Occurs when an error from WebReg was returned. These are usually errors relating
+    /// to you not being able to perform some operation (e.g, attempting to enroll in a
+    /// class that you aren't able to enroll in).
+    #[error("Error from WebReg: {0}")]
+    WebRegError(String),
+
+    /// Occurs if a section that you're trying to look for isn't available.
+    #[error("Section ID not found: {0} (context: {1}")]
+    SectionIdNotFound(String, SectionIdNotFoundContext),
+
+    /// Occurs if there's an error with the parsing logic.
+    #[error("An error occurred when parsing the response from WebReg: {0}")]
+    WrapperParsingError(String),
+
+    /// Occurs when your cookies may have expired.
+    #[error("The current session is not valid. Are your cookies valid?")]
+    SessionNotValid,
+}
+
+/// An enum to be used for giving more context into where the section ID wasn't found.
+#[derive(Debug)]
+pub enum SectionIdNotFoundContext {
+    /// Whether the section ID wasn't found in your schedule (i.e., you didn't enroll in
+    /// that section).
+    Schedule,
+    /// Whether the section ID wasn't found in the catalog (i.e., it's not offered
+    /// in the specified term).
+    Catalog,
+}
+
+impl Display for SectionIdNotFoundContext {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SectionIdNotFoundContext::Schedule => write!(f, "Schedule"),
+            SectionIdNotFoundContext::Catalog => write!(f, "Offered"),
+        }
+    }
+}
+
+/// A term that is available on WebReg.
+#[derive(Debug, Clone, Serialize)]
+pub struct Term {
+    /// The term ID.
+    pub seq_id: i64,
+    /// The term code (e.g., `SP23`).
+    pub term_code: String,
 }

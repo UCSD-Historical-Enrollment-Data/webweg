@@ -26,7 +26,7 @@ pub fn parse_meeting_type_date(w_meeting: &RawWebRegMeeting) -> (&str, MeetingDa
 
     let regular_meeting = w_meeting.meeting_type.trim();
     let day_code = w_meeting.day_code.trim();
-    assert!(day_code.chars().into_iter().all(|x| x.is_numeric()));
+    assert!(day_code.chars().all(|x| x.is_numeric()));
 
     if day_code.is_empty() {
         (regular_meeting, MeetingDay::None)
@@ -100,11 +100,12 @@ pub fn parse_binary_days(bin_str: &str) -> Vec<String> {
     days
 }
 
-const TERM_ARR: [(&str, (i64, i64)); 6] = [
+const TERM_ARR: [(&str, (i64, i64)); 7] = [
     ("SP", (5200, 22)), // SP22
     ("S1", (5210, 22)), // S122
     ("S2", (5220, 22)), // S222
     ("S3", (5230, 22)), // S322
+    ("SU", (5240, 22)), // SU22
     ("FA", (5250, 22)), // FA22
     ("WI", (5260, 23)), // WI23
 ];

@@ -138,12 +138,6 @@ pub struct RawWebRegMeeting {
     #[serde(rename = "FK_SST_SCTN_STATCD")]
     pub display_type: String,
 
-    /// Looks like this flag determines if a section needs to be waitlisted.
-    /// - `Y` if the section needs to be waitlisted.
-    /// - `N` if the section does not need to be waitlisted.
-    #[serde(rename = "STP_ENRLT_FLAG")]
-    pub needs_waitlist: String,
-
     /// No idea what this does, but I'm assuming this tells you if the section
     /// is visible on WebReg.
     /// - `" "` (an empty space) or `"Y"` if it is visible, and
@@ -400,4 +394,14 @@ pub struct RawDepartmentElement {
     /// `Mathematics`.
     #[serde(rename = "DEP_DESC")]
     pub dep_desc: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct RawTermListItem {
+    #[serde(rename = "termDesc")]
+    pub term_desc: String,
+    #[serde(rename = "seqId")]
+    pub seq_id: i64,
+    #[serde(rename = "termCode")]
+    pub term_code: String,
 }
