@@ -33,12 +33,12 @@ use crate::ww_parser::{
 ///
 /// Keep in mind that this structure only gives you some API access, as these APIs give you
 /// interesting data. For full access, consider using `WrapperTermRequest`.
-pub struct WrapperTermRawRequest<'a, 'term> {
+pub struct WrapperTermRawRequest<'a> {
     pub(crate) info: WebRegWrapperDataRef<'a>,
-    pub(crate) term: &'term str,
+    pub(crate) term: &'a str,
 }
 
-impl<'a, 'term> WrapperTermRawRequest<'a, 'term> {
+impl<'a> WrapperTermRawRequest<'a> {
     /// Gets all prerequisites for a specified course for the term set by the wrapper.
     ///
     /// # Parameters
@@ -220,11 +220,11 @@ impl<'a, 'term> WrapperTermRawRequest<'a, 'term> {
 /// (since they don't give you anything useful).
 ///
 /// In fact, `WrapperTermRequest` makes direct use of `WrapperTermRawRequest`.
-pub struct WrapperTermRequest<'a, 'term> {
-    pub(crate) raw: WrapperTermRawRequest<'a, 'term>,
+pub struct WrapperTermRequest<'a> {
+    pub(crate) raw: WrapperTermRawRequest<'a>,
 }
 
-impl<'a, 'term> WrapperTermRequest<'a, 'term> {
+impl<'a> WrapperTermRequest<'a> {
     /// Gets all prerequisites for a specified course for the term set by the wrapper.
     ///
     /// # Parameters

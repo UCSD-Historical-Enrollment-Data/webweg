@@ -27,7 +27,7 @@ pub struct WebRegWrapper {
     data: WebRegWrapperData
 }
 
-impl<'term> WebRegWrapper {
+impl<'a> WebRegWrapper {
     /// Creates a new instance of the `WebRegWrapper` with the specified `Client` and session
     /// cookies. A default timeout and user agent will be provided. To override these, use
     /// [`WrapperBuilder`].
@@ -313,7 +313,7 @@ impl<'term> WebRegWrapper {
     /// # Returns
     /// A builder allowing you to customize any settings for your request, like the cookies,
     /// client, term, user agent, and timeout.
-    pub fn req(&'term self, term: &'term str) -> WrapperTermRequestBuilder {
+    pub fn req(&'a self, term: &'a str) -> WrapperTermRequestBuilder {
         WrapperTermRequestBuilder::new_request(&self.data, term)
     }
 }

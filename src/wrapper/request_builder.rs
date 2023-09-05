@@ -15,16 +15,16 @@ use crate::wrapper::WebRegWrapperData;
 ///   the API.
 /// - the raw requester, which gives you the ability to manually process
 ///   some API responses on your own.
-pub struct WrapperTermRequestBuilder<'a, 'term> {
+pub struct WrapperTermRequestBuilder<'a> {
     pub(crate) cookies: &'a str,
     pub(crate) client: &'a Client,
-    pub(crate) term: &'term str,
+    pub(crate) term: &'a str,
     pub(crate) user_agent: &'a str,
     pub(crate) timeout: Duration,
     pub(crate) close_after_request: bool,
 }
 
-impl<'a, 'term> WrapperTermRequestBuilder<'a, 'term> {
+impl<'a> WrapperTermRequestBuilder<'a> {
     /// Initializes a new builder with the settings derived from the wrapper.
     ///
     /// # Parameters
@@ -32,7 +32,7 @@ impl<'a, 'term> WrapperTermRequestBuilder<'a, 'term> {
     ///
     /// # Returns
     /// The builder.
-    pub fn new_request(wrapper_data: &'a WebRegWrapperData, term: &'term str) -> Self {
+    pub fn new_request(wrapper_data: &'a WebRegWrapperData, term: &'a str) -> Self {
         Self {
             cookies: wrapper_data.cookies.as_str(),
             client: &wrapper_data.client,
@@ -135,7 +135,7 @@ impl<'a, 'term> WrapperTermRequestBuilder<'a, 'term> {
     ///
     /// # Returns
     /// The raw requester.
-    pub fn raw(self) -> WrapperTermRawRequest<'a, 'term> {
+    pub fn raw(self) -> WrapperTermRawRequest<'a> {
         WrapperTermRawRequest { term: self.term, info: self.build() }
     }
 
@@ -144,7 +144,7 @@ impl<'a, 'term> WrapperTermRequestBuilder<'a, 'term> {
     ///
     /// # Returns
     /// The parsed requester.
-    pub fn parsed(self) -> WrapperTermRequest<'a, 'term> {
+    pub fn parsed(self) -> WrapperTermRequest<'a> {
         WrapperTermRequest {
             raw: self.raw(),
         }
