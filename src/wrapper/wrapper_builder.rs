@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use crate::constants::MY_USER_AGENT;
 use reqwest::Client;
+use crate::wrapper::request_data::WebRegWrapperData;
 
 use crate::wrapper::WebRegWrapper;
 
@@ -20,7 +21,6 @@ use crate::wrapper::WebRegWrapper;
 pub struct WebRegWrapperBuilder {
     cookies: Option<String>,
     client: Client,
-    term: Option<String>,
     user_agent: String,
     default_timeout: Duration,
     close_after_request: bool,
@@ -36,7 +36,6 @@ impl WebRegWrapperBuilder {
         Self {
             cookies: None,
             client: Client::new(),
-            term: None,
             user_agent: MY_USER_AGENT.to_owned(),
             default_timeout: Duration::from_secs(30),
             close_after_request: false,
@@ -52,18 +51,6 @@ impl WebRegWrapperBuilder {
     /// The builder.
     pub fn with_cookies(mut self, cookie: impl Into<String>) -> Self {
         self.cookies = Some(cookie.into());
-        self
-    }
-
-    /// Sets the default term to the specified term.
-    ///
-    /// # Parameters
-    /// - `term`: The term.
-    ///
-    /// # Returns
-    /// The builder.
-    pub fn with_default_term(mut self, term: impl Into<String>) -> Self {
-        self.term = Some(term.into());
         self
     }
 
@@ -125,14 +112,15 @@ impl WebRegWrapperBuilder {
     /// The `WebRegWrapper` if both the `cookies` and `term` are specified. If any of those
     /// are not specified, `None` will be returned.
     pub fn try_build_wrapper(self) -> Option<WebRegWrapper> {
-        if let (Some(cookies), Some(term)) = (self.cookies, self.term) {
+        if let Some(cookies) = self.cookies {
             Some(WebRegWrapper {
-                cookies,
-                client: self.client,
-                term,
-                user_agent: self.user_agent,
-                default_timeout: self.default_timeout,
-                close_after_request: self.close_after_request,
+                data: WebRegWrapperData {
+                    cookies,
+                    client: self.client,
+                    user_agent: self.user_agent,
+                    timeout: self.default_timeout,
+                    close_after_request: self.close_after_request,
+                }
             })
         } else {
             None
