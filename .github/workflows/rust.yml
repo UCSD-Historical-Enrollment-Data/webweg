@@ -10,8 +10,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-    name: Compilation/Style/Tests
+  build_default:
+    name: Compilation/Style/Tests (Default)
     runs-on: ubuntu-latest
 
     steps:
@@ -24,3 +24,18 @@ jobs:
       run: cargo clippy
     - name: Format
       run: cargo fmt --check
+
+  build_multi:
+    name: Compilation/Style/Tests (Multi)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build
+        run: cargo build --features multi --verbose
+      - name: Run All Tests
+        run: cargo test --features multi --verbose
+      - name: Clippy
+        run: cargo clippy --features multi
+      - name: Format
+        run: cargo fmt --check
