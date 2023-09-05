@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use crate::constants::MY_USER_AGENT;
-use reqwest::Client;
 use crate::wrapper::request_data::WebRegWrapperData;
+use reqwest::Client;
 
 use crate::wrapper::WebRegWrapper;
 
@@ -120,7 +120,7 @@ impl WebRegWrapperBuilder {
                     user_agent: self.user_agent,
                     timeout: self.default_timeout,
                     close_after_request: self.close_after_request,
-                }
+                },
             })
         } else {
             None

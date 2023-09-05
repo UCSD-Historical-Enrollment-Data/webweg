@@ -17,20 +17,12 @@ async fn main() {
     println!("{my_schedule:?}");
 
     // The above few lines are equivalent to...
-    let my_schedule = wrapper
-        .req("FA23")
-        .parsed()
-        .get_schedule(None)
-        .await;
+    let my_schedule = wrapper.req("FA23").parsed().get_schedule(None).await;
 
     println!("{my_schedule:?}");
 
     // But let's say you want a raw response (not a cleaned one from WebReg)...
-    let my_raw_schedule = wrapper
-        .req("FA23")
-        .raw()
-        .get_schedule(None)
-        .await;
+    let my_raw_schedule = wrapper.req("FA23").raw().get_schedule(None).await;
 
     println!("{my_raw_schedule:?}");
 }

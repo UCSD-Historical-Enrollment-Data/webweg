@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-use reqwest::Client;
 use crate::wrapper::request_data::WebRegWrapperDataRef;
+use reqwest::Client;
 
 use crate::wrapper::requester_term::{WrapperTermRawRequest, WrapperTermRequest};
 use crate::wrapper::WebRegWrapperData;
@@ -136,7 +136,10 @@ impl<'a> WrapperTermRequestBuilder<'a> {
     /// # Returns
     /// The raw requester.
     pub fn raw(self) -> WrapperTermRawRequest<'a> {
-        WrapperTermRawRequest { term: self.term, info: self.build() }
+        WrapperTermRawRequest {
+            term: self.term,
+            info: self.build(),
+        }
     }
 
     /// Builds the requester that can be used to make many different calls (GET, POST) to
@@ -145,8 +148,6 @@ impl<'a> WrapperTermRequestBuilder<'a> {
     /// # Returns
     /// The parsed requester.
     pub fn parsed(self) -> WrapperTermRequest<'a> {
-        WrapperTermRequest {
-            raw: self.raw(),
-        }
+        WrapperTermRequest { raw: self.raw() }
     }
 }

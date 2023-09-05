@@ -3,8 +3,8 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use crate::constants::VERIFY_FAIL_ERR;
-use crate::types::WrapperError;
 use crate::types;
+use crate::types::WrapperError;
 
 /// Extracts text from the given response, handling the possibility that a bad status code
 /// or a verification error occurs.

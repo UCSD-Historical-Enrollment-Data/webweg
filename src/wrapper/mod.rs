@@ -7,24 +7,24 @@ use url::Url;
 use crate::constants::*;
 use crate::raw_types::RawTermListItem;
 use crate::types::{Term, WrapperError};
-use crate::wrapper::request_builder::WrapperTermRequestBuilder;
-use crate::wrapper::ww_helper::process_get_result;
-use crate::{types, util};
 use crate::util::get_term_seq_id;
+use crate::wrapper::request_builder::WrapperTermRequestBuilder;
 use crate::wrapper::request_data::{ReqType, ReqwestWebRegClientData, WebRegWrapperData};
 use crate::wrapper::wrapper_builder::WebRegWrapperBuilder;
+use crate::wrapper::ww_helper::process_get_result;
+use crate::{types, util};
 
 pub mod input_types;
 pub mod request_builder;
+mod request_data;
 pub mod requester_term;
 pub mod wrapper_builder;
 mod ww_helper;
-mod request_data;
 
 /// A wrapper for [UCSD's WebReg](https://act.ucsd.edu/webreg2/start). For more information,
 /// please see the README.
 pub struct WebRegWrapper {
-    data: WebRegWrapperData
+    data: WebRegWrapperData,
 }
 
 impl<'a> WebRegWrapper {
@@ -68,7 +68,7 @@ impl<'a> WebRegWrapper {
                 timeout: Duration::from_secs(30),
                 user_agent: MY_USER_AGENT.to_owned(),
                 close_after_request: false,
-            }
+            },
         }
     }
 
@@ -137,7 +137,13 @@ impl<'a> WebRegWrapper {
             return Err(WrapperError::SessionNotValid);
         }
 
-        Ok(self.data.req(ReqType::Get(ACC_NAME)).send().await?.text().await?)
+        Ok(self
+            .data
+            .req(ReqType::Get(ACC_NAME))
+            .send()
+            .await?
+            .text()
+            .await?)
     }
 
     /// Registers all terms to your current session so that you can freely
@@ -257,7 +263,8 @@ impl<'a> WebRegWrapper {
             ],
         )?;
 
-        process_get_result::<Value>(self.data.req(ReqType::Get(status_start_url)).send().await).await?;
+        process_get_result::<Value>(self.data.req(ReqType::Get(status_start_url)).send().await)
+            .await?;
 
         // Step 2: call eligibility endpoint
         let eligibility_url = Url::parse_with_params(
@@ -270,7 +277,8 @@ impl<'a> WebRegWrapper {
             ],
         )?;
 
-        process_get_result::<Value>(self.data.req(ReqType::Get(eligibility_url)).send().await).await?;
+        process_get_result::<Value>(self.data.req(ReqType::Get(eligibility_url)).send().await)
+            .await?;
 
         Ok(())
     }
@@ -284,7 +292,11 @@ impl<'a> WebRegWrapper {
     pub async fn ping_server(&self) -> bool {
         let res = self
             .data
-            .req(ReqType::Get(format!("{}?_={}", PING_SERVER, util::get_epoch_time())))
+            .req(ReqType::Get(format!(
+                "{}?_={}",
+                PING_SERVER,
+                util::get_epoch_time()
+            )))
             .send()
             .await;
 

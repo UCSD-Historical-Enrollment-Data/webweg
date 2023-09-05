@@ -1,6 +1,6 @@
-use std::time::Duration;
-use reqwest::{Client, IntoUrl, RequestBuilder};
 use reqwest::header::{CONNECTION, COOKIE, USER_AGENT};
+use reqwest::{Client, IntoUrl, RequestBuilder};
+use std::time::Duration;
 
 pub enum ReqType<U: IntoUrl> {
     Post(U),
@@ -106,17 +106,17 @@ pub trait ReqwestWebRegClientData<'a> {
     /// # Returns
     /// A request builder that can further be built on top of, if needed.
     fn req<U>(&'a self, req_type: ReqType<U>) -> RequestBuilder
-        where
-            U: IntoUrl
+    where
+        U: IntoUrl,
     {
         let client = self.get_client();
         let mut req = match req_type {
             ReqType::Post(u) => client.post(u),
-            ReqType::Get(u) => client.get(u)
+            ReqType::Get(u) => client.get(u),
         }
-            .header(COOKIE, self.get_cookies())
-            .header(USER_AGENT, self.get_user_agent())
-            .timeout(self.get_timeout());
+        .header(COOKIE, self.get_cookies())
+        .header(USER_AGENT, self.get_user_agent())
+        .timeout(self.get_timeout());
 
         if self.close_after_request() {
             req = req.header(CONNECTION, "close");

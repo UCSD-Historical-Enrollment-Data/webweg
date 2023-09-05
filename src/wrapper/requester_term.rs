@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use url::Url;
 
-use crate::{types, util};
 use crate::constants::{
     ALL_SCHEDULE, CHANGE_ENROLL, COURSE_DATA, CURR_SCHEDULE, DEFAULT_SCHEDULE_NAME, DEPT_LIST,
     ENROLL_ADD, ENROLL_DROP, ENROLL_EDIT, EVENT_ADD, EVENT_EDIT, EVENT_GET, EVENT_REMOVE, PLAN_ADD,
@@ -21,13 +20,12 @@ use crate::wrapper::input_types::{
     AddType, DayOfWeek, EnrollWaitAdd, EventAdd, ExplicitAddType, GradeOption, PlanAdd, SearchType,
 };
 use crate::wrapper::request_data::{ReqType, ReqwestWebRegClientData, WebRegWrapperDataRef};
-use crate::wrapper::ww_helper::{
-    extract_text, process_get_text, process_post_response,
-};
+use crate::wrapper::ww_helper::{extract_text, process_get_text, process_post_response};
 use crate::ww_parser::{
     build_search_course_url, parse_course_info, parse_enrollment_count, parse_get_events,
     parse_prerequisites, parse_schedule,
 };
+use crate::{types, util};
 
 /// A structure that can be used to get raw data from WebReg, with minimal error handling.
 ///
@@ -601,10 +599,7 @@ impl<'a> WrapperTermRequest<'a> {
             .raw
             .info
             .req(ReqType::Post(SEND_EMAIL))
-            .form(&[
-                ("actionevent", email_content),
-                ("termcode", self.raw.term),
-            ])
+            .form(&[("actionevent", email_content), ("termcode", self.raw.term)])
             .send()
             .await?;
 
