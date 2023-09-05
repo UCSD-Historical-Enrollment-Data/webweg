@@ -1,11 +1,10 @@
 use webweg::wrapper::input_types::{CourseLevelFilter, SearchRequestBuilder, SearchType};
-use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
+use webweg::wrapper::WebRegWrapper;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    let wrapper = WebRegWrapperBuilder::new()
+    let wrapper = WebRegWrapper::builder()
         .with_cookies("my cookies here")
-        .with_default_term("FA23")
         .try_build_wrapper()
         .unwrap();
 
@@ -24,7 +23,8 @@ async fn main() {
         .only_allow_open();
 
     let search_results = wrapper
-        .default_request()
+        .req("FA23")
+        .parsed()
         .search_courses(SearchType::Advanced(search))
         .await;
 
