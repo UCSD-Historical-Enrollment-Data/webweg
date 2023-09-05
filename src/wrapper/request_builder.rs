@@ -16,12 +16,8 @@ use crate::wrapper::WebRegWrapperData;
 /// - the raw requester, which gives you the ability to manually process
 ///   some API responses on your own.
 pub struct WrapperTermRequestBuilder<'a> {
-    pub(crate) cookies: &'a str,
-    pub(crate) client: &'a Client,
+    pub(crate) data: WebRegWrapperDataRef<'a>,
     pub(crate) term: &'a str,
-    pub(crate) user_agent: &'a str,
-    pub(crate) timeout: Duration,
-    pub(crate) close_after_request: bool,
 }
 
 impl<'a> WrapperTermRequestBuilder<'a> {
@@ -34,12 +30,17 @@ impl<'a> WrapperTermRequestBuilder<'a> {
     /// The builder.
     pub fn new_request(wrapper_data: &'a WebRegWrapperData, term: &'a str) -> Self {
         Self {
-            cookies: wrapper_data.cookies.as_str(),
-            client: &wrapper_data.client,
+            data: WebRegWrapperDataRef {
+                #[cfg(feature = "multi")]
+                cookies: wrapper_data.cookies.lock().to_owned(),
+                #[cfg(not(feature = "multi"))]
+                cookies: wrapper_data.cookies.as_ref(),
+                client: &wrapper_data.client,
+                user_agent: wrapper_data.user_agent.as_str(),
+                timeout: wrapper_data.timeout,
+                close_after_request: wrapper_data.close_after_request,
+            },
             term,
-            user_agent: wrapper_data.user_agent.as_str(),
-            timeout: wrapper_data.timeout,
-            close_after_request: wrapper_data.close_after_request,
         }
     }
 
@@ -52,7 +53,14 @@ impl<'a> WrapperTermRequestBuilder<'a> {
     /// # Returns
     /// The builder.
     pub fn override_cookies(mut self, cookies: &'a str) -> Self {
-        self.cookies = cookies;
+        #[cfg(feature = "multi")]
+        {
+            self.data.cookies = cookies.to_owned();
+        }
+        #[cfg(not(feature = "multi"))]
+        {
+            self.data.cookies = cookies;
+        }
         self
     }
 
@@ -65,7 +73,7 @@ impl<'a> WrapperTermRequestBuilder<'a> {
     /// # Returns
     /// The builder.
     pub fn override_client(mut self, client: &'a Client) -> Self {
-        self.client = client;
+        self.data.client = client;
         self
     }
 
@@ -78,7 +86,7 @@ impl<'a> WrapperTermRequestBuilder<'a> {
     /// # Returns
     /// The builder.
     pub fn override_user_agent(mut self, user_agent: &'a str) -> Self {
-        self.user_agent = user_agent;
+        self.data.user_agent = user_agent;
         self
     }
 
@@ -91,7 +99,7 @@ impl<'a> WrapperTermRequestBuilder<'a> {
     /// # Returns
     /// The builder.
     pub fn override_timeout(mut self, duration: Duration) -> Self {
-        self.timeout = duration;
+        self.data.timeout = duration;
         self
     }
 
@@ -105,7 +113,7 @@ impl<'a> WrapperTermRequestBuilder<'a> {
     /// # Returns
     /// The builder.
     pub fn should_close_after_request(mut self, close: bool) -> Self {
-        self.close_after_request = close;
+        self.data.close_after_request = close;
         self
     }
 
@@ -115,13 +123,7 @@ impl<'a> WrapperTermRequestBuilder<'a> {
     /// # Returns
     /// A structure containing the actual request information.
     fn build(self) -> WebRegWrapperDataRef<'a> {
-        WebRegWrapperDataRef {
-            cookies: self.cookies,
-            client: self.client,
-            user_agent: self.user_agent,
-            timeout: self.timeout,
-            close_after_request: self.close_after_request,
-        }
+        self.data
     }
 
     /// Builds the requester that can be used to generally obtain raw responses from WebReg.

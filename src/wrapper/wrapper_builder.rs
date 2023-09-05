@@ -1,3 +1,5 @@
+#[cfg(feature = "multi")]
+use parking_lot::lock_api::Mutex;
 use std::time::Duration;
 
 use crate::constants::MY_USER_AGENT;
@@ -115,6 +117,9 @@ impl WebRegWrapperBuilder {
         if let Some(cookies) = self.cookies {
             Some(WebRegWrapper {
                 data: WebRegWrapperData {
+                    #[cfg(feature = "multi")]
+                    cookies: Mutex::new(cookies),
+                    #[cfg(not(feature = "multi"))]
                     cookies,
                     client: self.client,
                     user_agent: self.user_agent,

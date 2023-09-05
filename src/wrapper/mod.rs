@@ -1,3 +1,5 @@
+#[cfg(feature = "multi")]
+use parking_lot::Mutex;
 use std::time::Duration;
 
 use reqwest::Client;
@@ -63,6 +65,9 @@ impl<'a> WebRegWrapper {
     pub fn new(client: Client, cookies: impl Into<String>) -> Self {
         Self {
             data: WebRegWrapperData {
+                #[cfg(feature = "multi")]
+                cookies: Mutex::new(cookies.into()),
+                #[cfg(not(feature = "multi"))]
                 cookies: cookies.into(),
                 client,
                 timeout: Duration::from_secs(30),
@@ -91,8 +96,14 @@ impl<'a> WebRegWrapper {
     ///
     /// # Parameters
     /// - `new_cookies`: The new cookies.
+    #[cfg(not(feature = "multi"))]
     pub fn set_cookies(&mut self, new_cookies: impl Into<String>) {
         self.data.cookies = new_cookies.into();
+    }
+    #[cfg(feature = "multi")]
+    pub fn set_cookies(&self, new_cookies: impl Into<String>) {
+        let mut cookies = self.data.cookies.lock();
+        *cookies = new_cookies.into();
     }
 
     /// Checks if the current WebReg instance is valid. Specifically, this will check if you

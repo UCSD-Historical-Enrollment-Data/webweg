@@ -1,21 +1,37 @@
+#[cfg(feature = "multi")]
+use parking_lot::Mutex;
 use reqwest::header::{CONNECTION, COOKIE, USER_AGENT};
 use reqwest::{Client, IntoUrl, RequestBuilder};
 use std::time::Duration;
 
-pub enum ReqType<U: IntoUrl> {
+pub(crate) enum ReqType<U: IntoUrl> {
     Post(U),
     Get(U),
 }
 
+/// A structure that represents data held by the wrapper or a request.
 pub struct WebRegWrapperData {
-    pub cookies: String,
-    pub client: Client,
-    pub user_agent: String,
-    pub timeout: Duration,
-    pub close_after_request: bool,
+    /// The cookies.
+    #[cfg(feature = "multi")]
+    pub(crate) cookies: Mutex<String>,
+    #[cfg(not(feature = "multi"))]
+    pub(crate) cookies: String,
+    /// The client used to make the request.
+    pub(crate) client: Client,
+    /// The user agent.
+    pub(crate) user_agent: String,
+    /// The timeout for this request.
+    pub(crate) timeout: Duration,
+    /// Whether to close the connection after the request has been completed.
+    pub(crate) close_after_request: bool,
 }
 
 impl<'a> ReqwestWebRegClientData<'a> for WebRegWrapperData {
+    #[cfg(feature = "multi")]
+    fn get_cookies(&'a self) -> String {
+        self.cookies.lock().to_owned()
+    }
+    #[cfg(not(feature = "multi"))]
     fn get_cookies(&'a self) -> &'a str {
         self.cookies.as_str()
     }
@@ -37,15 +53,29 @@ impl<'a> ReqwestWebRegClientData<'a> for WebRegWrapperData {
     }
 }
 
+/// A structure that represents data held by the wrapper or a request.
 pub(crate) struct WebRegWrapperDataRef<'a> {
+    #[cfg(feature = "multi")]
+    pub cookies: String,
+    /// The cookies.
+    #[cfg(not(feature = "multi"))]
     pub cookies: &'a str,
+    /// The client used to make the request.
     pub client: &'a Client,
+    /// The user agent.
     pub user_agent: &'a str,
+    /// The timeout for this request.
     pub timeout: Duration,
+    /// Whether to close the connection after the request has been completed.
     pub close_after_request: bool,
 }
 
 impl<'a> ReqwestWebRegClientData<'a> for WebRegWrapperDataRef<'a> {
+    #[cfg(feature = "multi")]
+    fn get_cookies(&'a self) -> String {
+        self.cookies.to_owned()
+    }
+    #[cfg(not(feature = "multi"))]
     fn get_cookies(&'a self) -> &'a str {
         self.cookies
     }
@@ -67,12 +97,15 @@ impl<'a> ReqwestWebRegClientData<'a> for WebRegWrapperDataRef<'a> {
     }
 }
 
-pub trait ReqwestWebRegClientData<'a> {
+pub(crate) trait ReqwestWebRegClientData<'a> {
     /// The cookies for this request.
     ///
     /// # Returns
     /// The cookies.
+    #[cfg(not(feature = "multi"))]
     fn get_cookies(&'a self) -> &'a str;
+    #[cfg(feature = "multi")]
+    fn get_cookies(&'a self) -> String;
 
     /// The client to be used for this request.
     ///
