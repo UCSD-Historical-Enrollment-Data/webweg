@@ -102,8 +102,8 @@ impl<'a> WebRegWrapper {
     ///
     /// This might be useful if you want to use the existing wrapper but need to change the
     /// cookies.
-    /// 
-    /// Note that a mutex is internally used to store the cookies. 
+    ///
+    /// Note that a mutex is internally used to store the cookies.
     ///
     /// # Parameters
     /// - `new_cookies`: The new cookies.

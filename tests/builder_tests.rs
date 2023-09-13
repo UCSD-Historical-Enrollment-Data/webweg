@@ -1,7 +1,7 @@
 use reqwest::Client;
 use webweg::wrapper::input_types::{DayOfWeek, EnrollWaitAdd, EventAdd, GradeOption, PlanAdd};
-use webweg::wrapper::WebRegWrapper;
 use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
+use webweg::wrapper::WebRegWrapper;
 
 #[test]
 fn fail_construct_wrapper() {
@@ -28,9 +28,7 @@ fn success_override_cookies() {
         .unwrap();
 
     // This test should pass if nothing panics
-    wrapper.req("FA23")
-        .override_cookies("abc")
-        .parsed();
+    wrapper.req("FA23").override_cookies("abc").parsed();
 }
 
 #[test]
@@ -42,7 +40,8 @@ fn fail_override_cookies() {
         .try_build_wrapper()
         .unwrap();
 
-    wrapper.req("FA23")
+    wrapper
+        .req("FA23")
         // This should panic
         .override_cookies("abc")
         .parsed();
