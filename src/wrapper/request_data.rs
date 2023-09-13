@@ -23,6 +23,13 @@ pub struct WebRegWrapperData {
     /// The timeout for this request.
     pub(crate) timeout: Duration,
     /// Whether to close the connection after the request has been completed.
+    ///
+    /// Setting this field to `true` means that your requests can be made with different cookies
+    /// with the same wrapper. However, this also means that you'll incur a performance hit when
+    /// making a request.
+    ///
+    /// It is recommended that this field's value is set to `false` if you do not need to switch
+    /// cookies for this wrapper.
     pub(crate) close_after_request: bool,
 }
 
@@ -67,6 +74,10 @@ pub(crate) struct WebRegWrapperDataRef<'a> {
     /// The timeout for this request.
     pub timeout: Duration,
     /// Whether to close the connection after the request has been completed.
+    ///
+    /// Setting this field to `true` means that your requests can be made with different cookies
+    /// with the same wrapper. However, this also means that you'll incur a performance hit when
+    /// making a request.
     pub close_after_request: bool,
 }
 

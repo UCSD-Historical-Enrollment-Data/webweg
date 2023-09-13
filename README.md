@@ -36,6 +36,8 @@ You're also able to do things like:
 
 To see some examples, check out the `examples` folder.
 
+## Crate Features
+An optional feature that can be enabled is the `multi` feature. By default, the wrapper will assume an environment with a single thread or task. So, if you want to be able to share an instance of the wrapper across multiple threads or tasks, you would have to use a `Mutex`. The problem with using a `Mutex` is that if a request is taking a long time (which isn't unusual), the entire wrapper is locked until the 
 
 ## Authentication
 

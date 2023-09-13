@@ -91,15 +91,22 @@ impl<'a> WebRegWrapper {
     /// This might be useful if you want to use the existing wrapper but need to change the
     /// cookies.
     ///
-    /// As a warning, this does NOT change the internal `term`. If this is something that
-    /// needs to be changed, either use `set_term` method.
-    ///
     /// # Parameters
     /// - `new_cookies`: The new cookies.
     #[cfg(not(feature = "multi"))]
     pub fn set_cookies(&mut self, new_cookies: impl Into<String>) {
         self.data.cookies = new_cookies.into();
     }
+
+    /// Sets the cookies to the new, specified cookies.
+    ///
+    /// This might be useful if you want to use the existing wrapper but need to change the
+    /// cookies.
+    /// 
+    /// Note that a mutex is internally used to store the cookies. 
+    ///
+    /// # Parameters
+    /// - `new_cookies`: The new cookies.
     #[cfg(feature = "multi")]
     pub fn set_cookies(&self, new_cookies: impl Into<String>) {
         let mut cookies = self.data.cookies.lock();

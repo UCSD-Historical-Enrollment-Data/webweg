@@ -46,13 +46,33 @@ impl<'a> WrapperTermRequestBuilder<'a> {
 
     /// Overrides the cookies for any requests made under this soon-to-be requester.
     ///
+    /// If you plan on overriding cookies for this particular request, you should ensure
+    /// requests are being closed on completion (call `should_close_after_request` for the
+    /// builder).
+    ///
     /// # Parameters
     /// - `cookies`: The cookies to use. This will _not_ override the cookies for the
     ///              wrapper, just this request.
     ///
     /// # Returns
     /// The builder.
+    ///
+    /// # Panic
+    /// This function will only panic if you configured the wrapper instance so that it does _not_
+    /// close the connection after a request is done.
+    ///
+    /// For some context, when creating the wrapper instance, you have the option of setting
+    /// whether the connection is closed after a request is done (via the builder's
+    /// [`should_close_after_request`](crate::wrapper::wrapper_builder::WebRegWrapperBuilder@should_close_after_request)
+    /// function). If you never called this function, or you used the default constructor to create
+    /// the wrapper, or you explicitly set this value to `false`, then the wrapper instance will
+    /// not close the connection after a request is done and thus will panic when _this_ function
+    /// is called.
     pub fn override_cookies(mut self, cookies: &'a str) -> Self {
+        if !self.data.close_after_request {
+            panic!("Your wrapper must be configured to close the connection after a request is done in order to override the cookies.");
+        }
+
         #[cfg(feature = "multi")]
         {
             self.data.cookies = cookies.to_owned();
@@ -100,20 +120,6 @@ impl<'a> WrapperTermRequestBuilder<'a> {
     /// The builder.
     pub fn override_timeout(mut self, duration: Duration) -> Self {
         self.data.timeout = duration;
-        self
-    }
-
-    /// Whether the client should close the connection after completing the request.
-    ///
-    /// If you are using different cookies for this request, consider setting this to `true`.
-    ///
-    /// # Parameters
-    /// - `close`: Whether to close the connection after completing the request.
-    ///
-    /// # Returns
-    /// The builder.
-    pub fn should_close_after_request(mut self, close: bool) -> Self {
-        self.data.close_after_request = close;
         self
     }
 

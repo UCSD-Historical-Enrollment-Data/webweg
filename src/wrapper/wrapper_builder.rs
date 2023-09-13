@@ -11,14 +11,18 @@ use crate::wrapper::WebRegWrapper;
 /// A builder for the `WebRegWrapper`. This should be used to construct a new wrapper.
 ///
 /// # Example
-/// ```rs
-/// let wrapper = WebRegWrapperBuilder::new()
+/// ```rust,no_run
+/// use webweg::wrapper::WebRegWrapper;
+/// use std::time::Duration;
+///
+/// # fn main() {
+///  let wrapper = WebRegWrapper::builder()
 ///     .with_cookies("abc")
-///     .with_default_term("FA23")
 ///     .with_default_timeout(Duration::from_secs(10))
 ///     .try_build_wrapper();
 ///
-/// assert!(wrapper.is_some());
+///  assert!(wrapper.is_some());
+/// # }
 /// ```
 pub struct WebRegWrapperBuilder {
     cookies: Option<String>,
@@ -94,8 +98,13 @@ impl WebRegWrapperBuilder {
 
     /// Whether the client should close the connection after completing the request.
     ///
-    /// If you are planning on using multiple active cookies for the same wrapper, set
-    /// this to `true`. Otherwise, you might get stale login errors.
+    /// If you plan on overriding the session cookies when making a request under this wrapper,
+    /// consider setting this to `true`. Otherwise, you might get stale login errors when overriding
+    /// cookies for a particular request. That being said, setting this to `true` may incur
+    /// performance penalties; in particular, requests may be up to 3-4 times slower if this is `true`.
+    ///
+    /// It is recommended that this field's value is set to `false` if you do not need to switch
+    /// cookies for this wrapper.
     ///
     /// # Parameters
     /// - `close`: Whether to close the connection after completing the request.
