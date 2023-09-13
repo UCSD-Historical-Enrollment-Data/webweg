@@ -20,7 +20,9 @@ use crate::wrapper::input_types::{
     AddType, DayOfWeek, EnrollWaitAdd, EventAdd, ExplicitAddType, GradeOption, PlanAdd, SearchType,
 };
 use crate::wrapper::request_data::{ReqType, ReqwestWebRegClientData, WebRegWrapperDataRef};
-use crate::wrapper::ww_helper::{extract_text, process_get_text, process_post_response};
+use crate::wrapper::ww_helper::{
+    associate_term_helper, extract_text, process_get_text, process_post_response,
+};
 use crate::ww_parser::{
     build_search_course_url, parse_course_info, parse_enrollment_count, parse_get_events,
     parse_prerequisites, parse_schedule,
@@ -199,6 +201,16 @@ impl<'a> WrapperTermRawRequest<'a> {
     pub async fn get_schedule_list(&self) -> types::Result<String> {
         let url = Url::parse_with_params(ALL_SCHEDULE, &[("termcode", self.term)])?;
         extract_text(self.info.req(ReqType::Get(url)).send().await).await
+    }
+
+    /// Associates the term bound by this request to the cookies that are provided
+    /// as part of this overridden request.
+    ///
+    /// # Returns
+    /// A result, where nothing is returned if everything went well and an error is returned
+    /// if something went wrong.
+    pub async fn associate_term(&self) -> types::Result<()> {
+        associate_term_helper(&self.info, self.term).await
     }
 }
 
@@ -1579,5 +1591,15 @@ impl<'a> WrapperTermRequest<'a> {
                 .await,
         )
         .await
+    }
+
+    /// Associates the term bound by this request to the cookies that are provided
+    /// as part of this overridden request.
+    ///
+    /// # Returns
+    /// A result, where nothing is returned if everything went well and an error is returned
+    /// if something went wrong.
+    pub async fn associate_term(&self) -> types::Result<()> {
+        associate_term_helper(&self.raw.info, self.raw.term).await
     }
 }
