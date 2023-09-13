@@ -6,7 +6,7 @@ use url::Url;
 use crate::constants::{ELIGIBILITY, STATUS_START, VERIFY_FAIL_ERR};
 use crate::types::WrapperError;
 use crate::util::get_term_seq_id;
-use crate::wrapper::ReqwestClientWrapper;
+use crate::wrapper::request_data::{ReqType, ReqwestWebRegClientData};
 use crate::{types, util};
 
 /// Extracts text from the given response, handling the possibility that a bad status code
@@ -127,7 +127,7 @@ pub(crate) async fn process_post_response(res: Result<Response, Error>) -> types
 /// A result, where nothing is returned if everything went well and an
 /// error is returned if something went wrong.
 pub(crate) async fn associate_term_helper<'a>(
-    obj: &'a impl ReqwestClientWrapper<'a>,
+    obj: &'a impl ReqwestWebRegClientData<'a>,
     term: impl AsRef<str>,
 ) -> types::Result<()> {
     let term = term.as_ref().to_uppercase();
@@ -147,7 +147,7 @@ pub(crate) async fn associate_term_helper<'a>(
         ],
     )?;
 
-    process_get_result::<Value>(obj.req_get(status_start_url).send().await).await?;
+    process_get_result::<Value>(obj.req(ReqType::Get(status_start_url)).send().await).await?;
 
     // Step 2: call eligibility endpoint
     let eligibility_url = Url::parse_with_params(
@@ -160,7 +160,6 @@ pub(crate) async fn associate_term_helper<'a>(
         ],
     )?;
 
-    process_get_result::<Value>(obj.req_get(eligibility_url).send().await).await?;
-
+    process_get_result::<Value>(obj.req(ReqType::Get(eligibility_url)).send().await).await?;
     Ok(())
 }

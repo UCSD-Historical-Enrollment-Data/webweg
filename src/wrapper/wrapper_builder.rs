@@ -1,6 +1,9 @@
+#[cfg(feature = "multi")]
+use parking_lot::lock_api::Mutex;
 use std::time::Duration;
 
 use crate::constants::MY_USER_AGENT;
+use crate::wrapper::request_data::WebRegWrapperData;
 use reqwest::Client;
 
 use crate::wrapper::WebRegWrapper;
@@ -8,19 +11,22 @@ use crate::wrapper::WebRegWrapper;
 /// A builder for the `WebRegWrapper`. This should be used to construct a new wrapper.
 ///
 /// # Example
-/// ```rs
-/// let wrapper = WebRegWrapperBuilder::new()
+/// ```rust,no_run
+/// use webweg::wrapper::WebRegWrapper;
+/// use std::time::Duration;
+///
+/// # fn main() {
+///  let wrapper = WebRegWrapper::builder()
 ///     .with_cookies("abc")
-///     .with_default_term("FA23")
 ///     .with_default_timeout(Duration::from_secs(10))
 ///     .try_build_wrapper();
 ///
-/// assert!(wrapper.is_some());
+///  assert!(wrapper.is_some());
+/// # }
 /// ```
 pub struct WebRegWrapperBuilder {
     cookies: Option<String>,
     client: Client,
-    term: Option<String>,
     user_agent: String,
     default_timeout: Duration,
     close_after_request: bool,
@@ -36,7 +42,6 @@ impl WebRegWrapperBuilder {
         Self {
             cookies: None,
             client: Client::new(),
-            term: None,
             user_agent: MY_USER_AGENT.to_owned(),
             default_timeout: Duration::from_secs(30),
             close_after_request: false,
@@ -52,18 +57,6 @@ impl WebRegWrapperBuilder {
     /// The builder.
     pub fn with_cookies(mut self, cookie: impl Into<String>) -> Self {
         self.cookies = Some(cookie.into());
-        self
-    }
-
-    /// Sets the default term to the specified term.
-    ///
-    /// # Parameters
-    /// - `term`: The term.
-    ///
-    /// # Returns
-    /// The builder.
-    pub fn with_default_term(mut self, term: impl Into<String>) -> Self {
-        self.term = Some(term.into());
         self
     }
 
@@ -105,8 +98,13 @@ impl WebRegWrapperBuilder {
 
     /// Whether the client should close the connection after completing the request.
     ///
-    /// If you are planning on using multiple active cookies for the same wrapper, set
-    /// this to `true`. Otherwise, you might get stale login errors.
+    /// If you plan on overriding the session cookies when making a request under this wrapper,
+    /// consider setting this to `true`. Otherwise, you might get stale login errors when overriding
+    /// cookies for a particular request. That being said, setting this to `true` may incur
+    /// performance penalties; in particular, requests may be up to 3-4 times slower if this is `true`.
+    ///
+    /// It is recommended that this field's value is set to `false` if you do not need to switch
+    /// cookies for this wrapper.
     ///
     /// # Parameters
     /// - `close`: Whether to close the connection after completing the request.
@@ -125,14 +123,18 @@ impl WebRegWrapperBuilder {
     /// The `WebRegWrapper` if both the `cookies` and `term` are specified. If any of those
     /// are not specified, `None` will be returned.
     pub fn try_build_wrapper(self) -> Option<WebRegWrapper> {
-        if let (Some(cookies), Some(term)) = (self.cookies, self.term) {
+        if let Some(cookies) = self.cookies {
             Some(WebRegWrapper {
-                cookies,
-                client: self.client,
-                term,
-                user_agent: self.user_agent,
-                default_timeout: self.default_timeout,
-                close_after_request: self.close_after_request,
+                data: WebRegWrapperData {
+                    #[cfg(feature = "multi")]
+                    cookies: Mutex::new(cookies),
+                    #[cfg(not(feature = "multi"))]
+                    cookies,
+                    client: self.client,
+                    user_agent: self.user_agent,
+                    timeout: self.default_timeout,
+                    close_after_request: self.close_after_request,
+                },
             })
         } else {
             None

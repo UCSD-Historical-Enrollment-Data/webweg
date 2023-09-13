@@ -19,11 +19,10 @@ use crate::types::{
 use crate::wrapper::input_types::{
     AddType, DayOfWeek, EnrollWaitAdd, EventAdd, ExplicitAddType, GradeOption, PlanAdd, SearchType,
 };
-use crate::wrapper::request_builder::WrapperTermTempRequest;
+use crate::wrapper::request_data::{ReqType, ReqwestWebRegClientData, WebRegWrapperDataRef};
 use crate::wrapper::ww_helper::{
     associate_term_helper, extract_text, process_get_text, process_post_response,
 };
-use crate::wrapper::ReqwestClientWrapper;
 use crate::ww_parser::{
     build_search_course_url, parse_course_info, parse_enrollment_count, parse_get_events,
     parse_prerequisites, parse_schedule,
@@ -35,7 +34,8 @@ use crate::{types, util};
 /// Keep in mind that this structure only gives you some API access, as these APIs give you
 /// interesting data. For full access, consider using `WrapperTermRequest`.
 pub struct WrapperTermRawRequest<'a> {
-    pub(crate) info: WrapperTermTempRequest<'a>,
+    pub(crate) info: WebRegWrapperDataRef<'a>,
+    pub(crate) term: &'a str,
 }
 
 impl<'a> WrapperTermRawRequest<'a> {
@@ -60,12 +60,12 @@ impl<'a> WrapperTermRawRequest<'a> {
             &[
                 ("subjcode", subject_code.as_ref()),
                 ("crsecode", crsc_code.as_str()),
-                ("termcode", self.info.term),
+                ("termcode", self.term),
                 ("_", util::get_epoch_time().to_string().as_ref()),
             ],
         )?;
 
-        extract_text(self.info.req_get(url).send().await).await
+        extract_text(self.info.req(ReqType::Get(url)).send().await).await
     }
 
     /// Gets your current schedule.
@@ -83,12 +83,12 @@ impl<'a> WrapperTermRawRequest<'a> {
                 ("schedname", schedule_name.unwrap_or(DEFAULT_SCHEDULE_NAME)),
                 ("final", ""),
                 ("sectnum", ""),
-                ("termcode", self.info.term),
+                ("termcode", self.term),
                 ("_", util::get_epoch_time().to_string().as_str()),
             ],
         )?;
 
-        extract_text(self.info.req_get(url).send().await).await
+        extract_text(self.info.req(ReqType::Get(url)).send().await).await
     }
 
     /// Gets course information for a particular course.
@@ -119,12 +119,12 @@ impl<'a> WrapperTermRawRequest<'a> {
             &[
                 ("subjcode", subject_code.as_ref()),
                 ("crsecode", crsc_code.as_str()),
-                ("termcode", self.info.term),
+                ("termcode", self.term),
                 ("_", util::get_epoch_time().to_string().as_ref()),
             ],
         )?;
 
-        extract_text(self.info.req_get(url).send().await).await
+        extract_text(self.info.req(ReqType::Get(url)).send().await).await
     }
 
     /// Gets a list of all departments that are offering courses for the given term.
@@ -134,13 +134,13 @@ impl<'a> WrapperTermRawRequest<'a> {
     pub async fn get_department_codes(&self) -> types::Result<String> {
         extract_text(
             self.info
-                .req_get(Url::parse_with_params(
+                .req(ReqType::Get(Url::parse_with_params(
                     DEPT_LIST,
                     &[
-                        ("termcode", self.info.term),
+                        ("termcode", self.term),
                         ("_", util::get_epoch_time().to_string().as_str()),
                     ],
-                )?)
+                )?))
                 .send()
                 .await,
         )
@@ -154,13 +154,13 @@ impl<'a> WrapperTermRawRequest<'a> {
     pub async fn get_subject_codes(&self) -> types::Result<String> {
         extract_text(
             self.info
-                .req_get(Url::parse_with_params(
+                .req(ReqType::Get(Url::parse_with_params(
                     SUBJ_LIST,
                     &[
-                        ("termcode", self.info.term),
+                        ("termcode", self.term),
                         ("_", util::get_epoch_time().to_string().as_str()),
                     ],
-                )?)
+                )?))
                 .send()
                 .await,
         )
@@ -178,7 +178,7 @@ impl<'a> WrapperTermRawRequest<'a> {
     pub async fn search_courses(&self, filter_by: SearchType) -> types::Result<String> {
         extract_text(
             self.info
-                .req_get(build_search_course_url(filter_by, self.info.term)?)
+                .req(ReqType::Get(build_search_course_url(filter_by, self.term)?))
                 .send()
                 .await,
         )
@@ -190,8 +190,8 @@ impl<'a> WrapperTermRawRequest<'a> {
     /// # Returns
     /// Information about any events you added, as returned by WebReg.
     pub async fn get_events(&self) -> types::Result<String> {
-        let url = Url::parse_with_params(EVENT_GET, &[("termcode", self.info.term)]).unwrap();
-        extract_text(self.info.req_get(url).send().await).await
+        let url = Url::parse_with_params(EVENT_GET, &[("termcode", self.term)]).unwrap();
+        extract_text(self.info.req(ReqType::Get(url)).send().await).await
     }
 
     /// Gets all of your schedules.
@@ -199,8 +199,8 @@ impl<'a> WrapperTermRawRequest<'a> {
     /// # Returns
     /// Your schedule list, as returned by WebReg.
     pub async fn get_schedule_list(&self) -> types::Result<String> {
-        let url = Url::parse_with_params(ALL_SCHEDULE, &[("termcode", self.info.term)])?;
-        extract_text(self.info.req_get(url).send().await).await
+        let url = Url::parse_with_params(ALL_SCHEDULE, &[("termcode", self.term)])?;
+        extract_text(self.info.req(ReqType::Get(url)).send().await).await
     }
 
     /// Associates the term bound by this request to the cookies that are provided
@@ -210,7 +210,7 @@ impl<'a> WrapperTermRawRequest<'a> {
     /// A result, where nothing is returned if everything went well and an error is returned
     /// if something went wrong.
     pub async fn associate_term(&self) -> types::Result<()> {
-        associate_term_helper(&self.info, self.info.term).await
+        associate_term_helper(&self.info, self.term).await
     }
 }
 
@@ -268,19 +268,17 @@ impl<'a> WrapperTermRequest<'a> {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use reqwest::Client;
     /// use webweg::wrapper::WebRegWrapper;
-    /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
     /// # async fn main() {
-    /// let wrapper = WebRegWrapperBuilder::new()
-    ///     .with_cookies("your cookies here")
-    ///     .with_default_term("FA23")
-    ///     .try_build_wrapper()
-    ///     .unwrap();
+    /// use reqwest::Client;
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies");
     ///
     /// let prereqs = wrapper
-    ///     .default_request()
+    ///     .req("FA23")
+    ///     .parsed()
     ///     .get_prerequisites("COGS", "108")
     ///     .await;
     ///
@@ -316,18 +314,15 @@ impl<'a> WrapperTermRequest<'a> {
     ///
     /// Getting the default schedule.
     /// ```rust,no_run
-    /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
+    /// use reqwest::Client;
+    /// use webweg::wrapper::WebRegWrapper;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
     /// # async fn main() {
-    /// let wrapper = WebRegWrapperBuilder::new()
-    ///     .with_cookies("your cookies here")
-    ///     .with_default_term("FA23")
-    ///     .try_build_wrapper()
-    ///     .unwrap();
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies");
     ///
     /// // Pass in "None" for the default schedule
-    /// let default_schedule = wrapper.default_request().get_schedule(None).await;
+    /// let default_schedule = wrapper.req("FA23").parsed().get_schedule(None).await;
     ///
     /// match default_schedule {
     ///     Ok(o) => o.iter().for_each(|sec| println!("{sec}")),
@@ -338,18 +333,15 @@ impl<'a> WrapperTermRequest<'a> {
     ///
     /// Getting the schedule with name "`Other Schedule`."
     /// ```rust,no_run
-    /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
+    /// use reqwest::Client;
+    /// use webweg::wrapper::WebRegWrapper;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
     /// # async fn main() {
-    /// let wrapper = WebRegWrapperBuilder::new()
-    ///     .with_cookies("your cookies here")
-    ///     .with_default_term("FA23")
-    ///     .try_build_wrapper()
-    ///     .unwrap();
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies");
     ///
     /// // Get all courses under the "Other Schedule" schedule
-    /// let other_schedule = wrapper.default_request().get_schedule(Some("Other Schedule")).await;
+    /// let other_schedule = wrapper.req("FA23").parsed().get_schedule(Some("Other Schedule")).await;
     ///
     /// match other_schedule {
     ///     Ok(o) => o.iter().for_each(|sec| println!("{sec}")),
@@ -390,18 +382,15 @@ impl<'a> WrapperTermRequest<'a> {
     /// Suppose we wanted to find all sections of COGS 108 for the sole purpose of seeing how
     /// many people are enrolled.
     /// ```rust,no_run
-    /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
+    /// use reqwest::Client;
+    /// use webweg::wrapper::WebRegWrapper;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
     /// # async fn main() {
-    /// let wrapper = WebRegWrapperBuilder::new()
-    ///     .with_cookies("your cookies here")
-    ///     .with_default_term("FA23")
-    ///     .try_build_wrapper()
-    ///     .unwrap();
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies");
     ///
     /// let sec_count = wrapper
-    ///     .default_request()
+    ///     .req("FA23").parsed()
     ///     .get_enrollment_count("COGS", "108")
     ///     .await;
     ///
@@ -455,18 +444,15 @@ impl<'a> WrapperTermRequest<'a> {
     /// Let's suppose we wanted to find all sections of CSE 105. This is how we would do this.
     /// Note that this will contain a lot of information.
     /// ```rust,no_run
-    /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
+    /// use reqwest::Client;
+    /// use webweg::wrapper::WebRegWrapper;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
     /// # async fn main() {
-    /// let wrapper = WebRegWrapperBuilder::new()
-    ///     .with_cookies("your cookies here")
-    ///     .with_default_term("FA23")
-    ///     .try_build_wrapper()
-    ///     .unwrap();
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies");
     ///
     /// let course_info = wrapper
-    ///     .default_request()
+    ///     .req("FA23").parsed()
     ///     .get_course_info("CSE", "105")
     ///     .await;
     ///
@@ -552,19 +538,17 @@ impl<'a> WrapperTermRequest<'a> {
     /// # Example
     /// Renaming the schedule "`Test Schedule`" to "`Another Schedule`."
     /// ```rust,no_run
-    /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
+    /// use reqwest::Client;
+    /// use webweg::wrapper::WebRegWrapper;
     ///
     ///
     /// # #[tokio::main(flavor = "current_thread")]
     /// # async fn main() {
-    /// let wrapper = WebRegWrapperBuilder::new()
-    ///     .with_cookies("Your cookies here.")
-    ///     .with_default_term("FA23")
-    ///     .try_build_wrapper()
-    ///     .unwrap();
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies");
     ///
     /// let events = wrapper
-    ///     .default_request()
+    ///     .req("FA23")
+    ///     .parsed()
     ///     .get_events()
     ///     .await;
     /// match events {
@@ -603,18 +587,16 @@ impl<'a> WrapperTermRequest<'a> {
     /// # Example
     /// This will send an email to yourself with the content specified as the string shown below.
     /// ```rust,no_run
-    /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
+    /// use reqwest::Client;
+    /// use webweg::wrapper::WebRegWrapper;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
     /// # async fn main() {
-    /// let wrapper = WebRegWrapperBuilder::new()
-    ///     .with_cookies("Your cookies here.")
-    ///     .with_default_term("FA23")
-    ///     .try_build_wrapper()
-    ///     .unwrap();
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies");
     ///
     /// let email_res = wrapper
-    ///     .default_request()
+    ///     .req("FA23")
+    ///     .parsed()
     ///     .send_email_to_self("hello, world.")
     ///     .await;
     ///
@@ -628,11 +610,8 @@ impl<'a> WrapperTermRequest<'a> {
         let r = self
             .raw
             .info
-            .req_post(SEND_EMAIL)
-            .form(&[
-                ("actionevent", email_content),
-                ("termcode", self.raw.info.term),
-            ])
+            .req(ReqType::Post(SEND_EMAIL))
+            .form(&[("actionevent", email_content), ("termcode", self.raw.term)])
             .send()
             .await?;
 
@@ -665,19 +644,17 @@ impl<'a> WrapperTermRequest<'a> {
     /// # Example
     /// Changing the section associated with section ID `235181` to letter grading option.
     /// ```rust,no_run
+    /// use reqwest::Client;
     /// use webweg::wrapper::input_types::GradeOption;
-    /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
+    /// use webweg::wrapper::WebRegWrapper;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
     /// # async fn main() {
-    /// let wrapper = WebRegWrapperBuilder::new()
-    ///     .with_cookies("Your cookies here")
-    ///     .with_default_term("FA23")
-    ///     .try_build_wrapper()
-    ///     .unwrap();
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies");
     ///
     /// let change_res = wrapper
-    ///     .default_request()
+    ///     .req("FA23")
+    ///     .parsed()
     ///     .change_grading_option("235181", GradeOption::P)
     ///     .await;
     ///
@@ -744,7 +721,7 @@ impl<'a> WrapperTermRequest<'a> {
         process_post_response(
             self.raw
                 .info
-                .req_post(CHANGE_ENROLL)
+                .req(ReqType::Post(CHANGE_ENROLL))
                 .form(&[
                     ("section", sec_id.as_str()),
                     ("subjCode", ""),
@@ -754,7 +731,7 @@ impl<'a> WrapperTermRequest<'a> {
                     // You don't actually need these
                     ("oldGrade", ""),
                     ("oldUnit", ""),
-                    ("termcode", self.raw.info.term),
+                    ("termcode", self.raw.term),
                 ])
                 .send()
                 .await,
@@ -775,16 +752,13 @@ impl<'a> WrapperTermRequest<'a> {
     /// Here, we will add the course `CSE 100`, which has section ID `079911` and section code
     /// `A01`, to our plan.
     /// ```rust,no_run
+    /// use reqwest::Client;
     /// use webweg::wrapper::input_types::{GradeOption, PlanAdd};
-    /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
+    /// use webweg::wrapper::WebRegWrapper;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
     /// # async fn main() {
-    /// let wrapper = WebRegWrapperBuilder::new()
-    ///     .with_cookies("Your cookies here.")
-    ///     .with_default_term("FA23")
-    ///     .try_build_wrapper()
-    ///     .unwrap();
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies");
     ///
     /// let plan_add_data = PlanAdd::builder()
     ///     .with_subject_code("CSE")
@@ -797,7 +771,8 @@ impl<'a> WrapperTermRequest<'a> {
     ///     .unwrap();
     ///
     /// let plan_res = wrapper
-    ///     .default_request()
+    ///     .req("FA23")
+    ///     .parsed()
     ///     .validate_add_to_plan(&plan_add_data)
     ///     .await;
     ///
@@ -812,12 +787,12 @@ impl<'a> WrapperTermRequest<'a> {
         process_post_response(
             self.raw
                 .info
-                .req_post(PLAN_EDIT)
+                .req(ReqType::Post(PLAN_EDIT))
                 .form(&[
                     ("section", plan_options.section_id.as_ref()),
                     ("subjcode", plan_options.subject_code.as_ref()),
                     ("crsecode", crsc_code.as_str()),
-                    ("termcode", self.raw.info.term),
+                    ("termcode", self.raw.term),
                 ])
                 .send()
                 .await,
@@ -846,16 +821,13 @@ impl<'a> WrapperTermRequest<'a> {
     /// Here, we will add the course `POLI 145`, which has section ID `278941` and section code
     /// `A00`, to our plan.
     /// ```rust,no_run
+    /// use reqwest::Client;
     /// use webweg::wrapper::input_types::{GradeOption, PlanAdd};
-    /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
+    /// use webweg::wrapper::WebRegWrapper;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
     /// # async fn main() {
-    /// let wrapper = WebRegWrapperBuilder::new()
-    ///     .with_cookies("Your cookies here.")
-    ///     .with_default_term("FA23")
-    ///     .try_build_wrapper()
-    ///     .unwrap();
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies");
     ///
     /// let plan_add_data = PlanAdd::builder()
     ///     .with_subject_code("CSE")
@@ -868,7 +840,8 @@ impl<'a> WrapperTermRequest<'a> {
     ///     .unwrap();
     ///
     /// let plan_res = wrapper
-    ///     .default_request()
+    ///     .req("FA23")
+    ///     .parsed()
     ///     .add_to_plan(plan_add_data, true)
     ///     .await;
     ///
@@ -899,7 +872,7 @@ impl<'a> WrapperTermRequest<'a> {
         process_post_response(
             self.raw
                 .info
-                .req_post(PLAN_ADD)
+                .req(ReqType::Post(PLAN_ADD))
                 .form(&[
                     ("subjcode", plan_options.subject_code.as_ref()),
                     ("crsecode", crsc_code.as_str()),
@@ -913,7 +886,7 @@ impl<'a> WrapperTermRequest<'a> {
                             .unwrap_or(GradeOption::L)
                             .as_str(),
                     ),
-                    ("termcode", self.raw.info.term),
+                    ("termcode", self.raw.term),
                     (
                         "schedname",
                         match plan_options.schedule_name {
@@ -941,18 +914,15 @@ impl<'a> WrapperTermRequest<'a> {
     /// # Example
     /// Here, we will remove the planned course with section ID `123456` from our default schedule.
     /// ```rust,no_run
-    /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
+    /// use reqwest::Client;
+    /// use webweg::wrapper::WebRegWrapper;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
     /// # async fn main() {
-    /// let wrapper = WebRegWrapperBuilder::new()
-    ///     .with_cookies("Your cookies here")
-    ///     .with_default_term("FA23")
-    ///     .try_build_wrapper()
-    ///     .unwrap();
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies");
     ///
     /// let unplan_res = wrapper
-    ///     .default_request()
+    ///     .req("FA23").parsed()
     ///     .remove_from_plan("123456", None)
     ///     .await;
     ///
@@ -970,10 +940,10 @@ impl<'a> WrapperTermRequest<'a> {
         process_post_response(
             self.raw
                 .info
-                .req_post(PLAN_REMOVE)
+                .req(ReqType::Post(PLAN_REMOVE))
                 .form(&[
                     ("sectnum", section_id.as_ref()),
-                    ("termcode", self.raw.info.term),
+                    ("termcode", self.raw.term),
                     ("schedname", schedule_name.unwrap_or(DEFAULT_SCHEDULE_NAME)),
                 ])
                 .send()
@@ -999,16 +969,13 @@ impl<'a> WrapperTermRequest<'a> {
     /// Here, we will enroll in the course with section ID `078616`, and with the default grading
     /// option and unit count.
     /// ```rust,no_run
+    /// use reqwest::Client;
     /// use webweg::wrapper::input_types::{AddType, EnrollWaitAdd};
-    /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
+    /// use webweg::wrapper::WebRegWrapper;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
     /// # async fn main() {
-    /// let wrapper = WebRegWrapperBuilder::new()
-    ///     .with_cookies("Your cookies here.")
-    ///     .with_default_term("FA23")
-    ///     .try_build_wrapper()
-    ///     .unwrap();
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies");
     ///
     /// let enroll_options = EnrollWaitAdd::builder()
     ///     .with_section_id("260737")
@@ -1016,7 +983,8 @@ impl<'a> WrapperTermRequest<'a> {
     ///     .unwrap();
     ///
     /// let add_res = wrapper
-    ///     .default_request()
+    ///     .req("FA23")
+    ///     .parsed()
     ///     .validate_add_section(AddType::Enroll, &enroll_options)
     ///     .await;
     ///
@@ -1046,11 +1014,11 @@ impl<'a> WrapperTermRequest<'a> {
         process_post_response(
             self.raw
                 .info
-                .req_post(base_edit_url)
+                .req(ReqType::Post(base_edit_url))
                 .form(&[
                     // These are required
                     ("section", enroll_options.section_id.as_ref()),
-                    ("termcode", self.raw.info.term),
+                    ("termcode", self.raw.term),
                     // These are optional.
                     ("subjcode", ""),
                     ("crsecode", ""),
@@ -1126,16 +1094,13 @@ impl<'a> WrapperTermRequest<'a> {
     /// Here, we will enroll in the course with section ID `260737`, and with the default grading
     /// option and unit count.
     /// ```rust,no_run
+    /// use reqwest::Client;
     /// use webweg::wrapper::input_types::{AddType, EnrollWaitAdd};
-    /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
+    /// use webweg::wrapper::WebRegWrapper;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
     /// # async fn main() {
-    /// let wrapper = WebRegWrapperBuilder::new()
-    ///     .with_cookies("Your cookies here.")
-    ///     .with_default_term("FA23")
-    ///     .try_build_wrapper()
-    ///     .unwrap();
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies");
     ///
     /// let enroll_options = EnrollWaitAdd::builder()
     ///     .with_section_id("260737")
@@ -1143,7 +1108,8 @@ impl<'a> WrapperTermRequest<'a> {
     ///     .unwrap();
     ///
     /// let add_res = wrapper
-    ///     .default_request()
+    ///     .req("FA23")
+    ///     .parsed()
     ///     // Let the library decide if we should enroll or waitlist
     ///     .add_section(AddType::DecideForMe, enroll_options, true)
     ///     .await;
@@ -1183,11 +1149,11 @@ impl<'a> WrapperTermRequest<'a> {
         process_post_response(
             self.raw
                 .info
-                .req_post(base_reg_url)
+                .req(ReqType::Post(base_reg_url))
                 .form(&[
                     // These are required
                     ("section", enroll_options.section_id.as_ref()),
-                    ("termcode", self.raw.info.term),
+                    ("termcode", self.raw.term),
                     // These are optional.
                     ("unit", u.as_str()),
                     (
@@ -1209,10 +1175,10 @@ impl<'a> WrapperTermRequest<'a> {
         process_post_response(
             self.raw
                 .info
-                .req_post(PLAN_REMOVE_ALL)
+                .req(ReqType::Post(PLAN_REMOVE_ALL))
                 .form(&[
                     ("sectnum", enroll_options.section_id.as_ref()),
-                    ("termcode", self.raw.info.term),
+                    ("termcode", self.raw.term),
                 ])
                 .send()
                 .await,
@@ -1239,19 +1205,16 @@ impl<'a> WrapperTermRequest<'a> {
     /// Here, we assume that we are enrolled in a course with section ID `078616`, and want to
     /// drop it.
     /// ```rust,no_run
+    /// use reqwest::Client;
     /// use webweg::wrapper::input_types::ExplicitAddType;
-    /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
+    /// use webweg::wrapper::WebRegWrapper;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
     /// # async fn main() {
-    /// let wrapper = WebRegWrapperBuilder::new()
-    ///     .with_cookies("Your cookies go here.")
-    ///     .with_default_term("FA23")
-    ///     .try_build_wrapper()
-    ///     .unwrap();
+    /// let wrapper = WebRegWrapper::new(Client::new(), "FA23");
     ///
     /// let drop_res = wrapper
-    ///     .default_request()
+    ///     .req("FA23").parsed()
     ///     .drop_section(ExplicitAddType::Enroll, "123456")
     ///     .await;
     ///
@@ -1274,14 +1237,14 @@ impl<'a> WrapperTermRequest<'a> {
         process_post_response(
             self.raw
                 .info
-                .req_post(base_reg_url)
+                .req(ReqType::Post(base_reg_url))
                 .form(&[
                     // These parameters are optional
                     ("subjcode", ""),
                     ("crsecode", ""),
                     // But these are required
                     ("section", section_id.as_ref()),
-                    ("termcode", self.raw.info.term),
+                    ("termcode", self.raw.term),
                 ])
                 .send()
                 .await,
@@ -1305,17 +1268,14 @@ impl<'a> WrapperTermRequest<'a> {
     /// should be doing error handling here.
     ///
     /// ```rust,no_run
-    /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
+    /// use reqwest::Client;
+    /// use webweg::wrapper::WebRegWrapper;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
     /// # async fn main() {
-    /// let wrapper = WebRegWrapperBuilder::new()
-    ///     .with_cookies("Your cookies here")
-    ///     .with_default_term("FA23")
-    ///     .try_build_wrapper()
-    ///     .unwrap();
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies");
     ///
-    /// let default_requester = wrapper.default_request();
+    /// let default_requester = wrapper.req("FA23").parsed();
     /// assert!(!default_requester
     ///     .get_schedule_list()
     ///     .await
@@ -1350,9 +1310,9 @@ impl<'a> WrapperTermRequest<'a> {
         process_post_response(
             self.raw
                 .info
-                .req_post(RENAME_SCHEDULE)
+                .req(ReqType::Post(RENAME_SCHEDULE))
                 .form(&[
-                    ("termcode", self.raw.info.term),
+                    ("termcode", self.raw.term),
                     ("oldschedname", old_name.as_ref()),
                     ("newschedname", new_name.as_ref()),
                 ])
@@ -1374,17 +1334,14 @@ impl<'a> WrapperTermRequest<'a> {
     /// # Example
     /// Delete the schedule "`Test Schedule`."
     /// ```rust,no_run
-    /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
+    /// use reqwest::Client;
+    /// use webweg::wrapper::WebRegWrapper;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
     /// # async fn main() {
-    /// let wrapper = WebRegWrapperBuilder::new()
-    ///     .with_cookies("Your cookies here.")
-    ///     .with_default_term("FA23")
-    ///     .try_build_wrapper()
-    ///     .unwrap();
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies");
     ///
-    /// let default_requester = wrapper.default_request();
+    /// let default_requester = wrapper.req("FA23").parsed();
     /// assert!(default_requester
     ///     .get_schedule_list()
     ///     .await
@@ -1413,9 +1370,9 @@ impl<'a> WrapperTermRequest<'a> {
         process_post_response(
             self.raw
                 .info
-                .req_post(REMOVE_SCHEDULE)
+                .req(ReqType::Post(REMOVE_SCHEDULE))
                 .form(&[
-                    ("termcode", self.raw.info.term),
+                    ("termcode", self.raw.term),
                     ("schedname", schedule_name.as_ref()),
                 ])
                 .send()
@@ -1442,16 +1399,13 @@ impl<'a> WrapperTermRequest<'a> {
     /// # Example
     /// Renaming the schedule "`Test Schedule`" to "`Another Schedule`."
     /// ```rust,no_run
+    /// use reqwest::Client;
     /// use webweg::wrapper::input_types::{DayOfWeek, EventAdd};
-    /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
+    /// use webweg::wrapper::WebRegWrapper;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
     /// # async fn main() {
-    /// let wrapper = WebRegWrapperBuilder::new()
-    ///     .with_cookies("Your cookies here.")
-    ///     .with_default_term("FA23")
-    ///     .try_build_wrapper()
-    ///     .unwrap();
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies");
     ///
     /// let event_to_add = EventAdd::builder()
     ///     .with_name("Clown on Alex")
@@ -1465,7 +1419,7 @@ impl<'a> WrapperTermRequest<'a> {
     ///
     /// // Adding an event
     /// let add_res = wrapper
-    ///     .default_request()
+    ///     .req("FA23").parsed()
     ///     .add_or_edit_event(event_to_add, None)
     ///     .await;
     /// match add_res {
@@ -1486,7 +1440,7 @@ impl<'a> WrapperTermRequest<'a> {
     /// // Replace the event with the specified timestamp `2022-09-09 21:50:16.846885`
     /// // with another event.
     /// let replace_res = wrapper
-    ///     .default_request()
+    ///     .req("FA23").parsed()
     ///     .add_or_edit_event(event_to_replace_with, Some("2022-09-09 21:50:16.846885"))
     ///     .await;
     /// match replace_res {
@@ -1561,7 +1515,7 @@ impl<'a> WrapperTermRequest<'a> {
         }
 
         let mut form_data = HashMap::from([
-            ("termcode", self.raw.info.term),
+            ("termcode", self.raw.term),
             ("aename", event_info.event_name.as_ref()),
             ("aestarttime", start_time_full.as_str()),
             ("aeendtime", end_time_full.as_str()),
@@ -1583,10 +1537,10 @@ impl<'a> WrapperTermRequest<'a> {
         process_post_response(
             self.raw
                 .info
-                .req_post(match et {
+                .req(ReqType::Post(match et {
                     Some(_) => EVENT_EDIT,
                     None => EVENT_ADD,
-                })
+                }))
                 .form(&form_data)
                 .send()
                 .await,
@@ -1607,18 +1561,15 @@ impl<'a> WrapperTermRequest<'a> {
     /// # Example
     /// Renaming the schedule "`Test Schedule`" to "`Another Schedule`."
     /// ```rust,no_run
-    /// use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
+    /// use reqwest::Client;
+    /// use webweg::wrapper::WebRegWrapper;
     ///
     /// # #[tokio::main(flavor = "current_thread")]
     /// # async fn main() {
-    /// let wrapper = WebRegWrapperBuilder::new()
-    ///     .with_cookies("Your cookies here.")
-    ///     .with_default_term("FA23")
-    ///     .try_build_wrapper()
-    ///     .unwrap();
+    /// let wrapper = WebRegWrapper::new(Client::new(), "my cookies");
     ///
     /// let delete_res = wrapper
-    ///     .default_request()
+    ///     .req("FA23").parsed()
     ///     .remove_event("2022-09-09 21:50:16.846885")
     ///     .await;
     /// match delete_res {
@@ -1631,10 +1582,10 @@ impl<'a> WrapperTermRequest<'a> {
         process_post_response(
             self.raw
                 .info
-                .req_post(EVENT_REMOVE)
+                .req(ReqType::Post(EVENT_REMOVE))
                 .form(&[
                     ("aetimestamp", event_timestamp.as_ref()),
-                    ("termcode", self.raw.info.term),
+                    ("termcode", self.raw.term),
                 ])
                 .send()
                 .await,
@@ -1649,6 +1600,6 @@ impl<'a> WrapperTermRequest<'a> {
     /// A result, where nothing is returned if everything went well and an error is returned
     /// if something went wrong.
     pub async fn associate_term(&self) -> types::Result<()> {
-        associate_term_helper(&self.raw.info, self.raw.info.term).await
+        associate_term_helper(&self.raw.info, self.raw.term).await
     }
 }

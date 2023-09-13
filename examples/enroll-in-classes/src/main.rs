@@ -1,11 +1,10 @@
 use webweg::wrapper::input_types::{AddType, EnrollWaitAdd, GradeOption};
-use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
+use webweg::wrapper::WebRegWrapper;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    let wrapper = WebRegWrapperBuilder::new()
+    let wrapper = WebRegWrapper::builder()
         .with_cookies("my cookies here")
-        .with_default_term("FA23")
         .try_build_wrapper()
         .unwrap();
 
@@ -19,7 +18,8 @@ async fn main() {
         .unwrap();
 
     let enroll_result = wrapper
-        .default_request()
+        .req("FA23")
+        .parsed()
         .add_section(AddType::DecideForMe, course_to_enroll, true)
         .await;
 

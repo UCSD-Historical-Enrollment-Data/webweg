@@ -1,19 +1,19 @@
-use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
+use webweg::wrapper::WebRegWrapper;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    let wrapper = WebRegWrapperBuilder::new()
+    let wrapper = WebRegWrapper::builder()
         .with_cookies("my cookies here")
-        .with_default_term("FA23")
         .try_build_wrapper()
         .unwrap();
 
     // Registers all active terms so we can switch between active quarters.
     _ = wrapper.register_all_terms().await;
 
-    // Using `default_request` defaults to the default term (FA23)
+    // Let's get all CSE 100 courses for FA23
     let cse100_fa23 = wrapper
-        .default_request()
+        .req("FA23")
+        .parsed()
         .get_course_info("CSE", "100")
         .await;
 
@@ -30,9 +30,8 @@ async fn main() {
 
     // But we can also switch to another active quarter
     let cse100_s223 = wrapper
-        .make_request()
-        .override_term("S223")
-        .build_term_parser()
+        .req("S223")
+        .parsed()
         .get_course_info("CSE", "100")
         .await;
 

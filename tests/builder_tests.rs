@@ -1,12 +1,12 @@
 use reqwest::Client;
 use webweg::wrapper::input_types::{DayOfWeek, EnrollWaitAdd, EventAdd, GradeOption, PlanAdd};
 use webweg::wrapper::wrapper_builder::WebRegWrapperBuilder;
+use webweg::wrapper::WebRegWrapper;
 
 #[test]
 fn fail_construct_wrapper() {
     let wrapper = WebRegWrapperBuilder::new()
         .with_client(Client::new())
-        .with_default_term("FA23")
         .try_build_wrapper();
     assert!(wrapper.is_none());
 }
@@ -15,9 +15,36 @@ fn fail_construct_wrapper() {
 fn success_construct_wrapper() {
     let wrapper = WebRegWrapperBuilder::new()
         .with_cookies("abc")
-        .with_default_term("FA23")
         .try_build_wrapper();
     assert!(wrapper.is_some());
+}
+
+#[test]
+fn success_override_cookies() {
+    let wrapper = WebRegWrapper::builder()
+        .with_cookies("ABC")
+        .should_close_after_request(true)
+        .try_build_wrapper()
+        .unwrap();
+
+    // This test should pass if nothing panics
+    wrapper.req("FA23").override_cookies("abc").parsed();
+}
+
+#[test]
+#[should_panic]
+fn fail_override_cookies() {
+    let wrapper = WebRegWrapper::builder()
+        .with_cookies("ABC")
+        // Not specifying close_after_request
+        .try_build_wrapper()
+        .unwrap();
+
+    wrapper
+        .req("FA23")
+        // This should panic
+        .override_cookies("abc")
+        .parsed();
 }
 
 #[test]
