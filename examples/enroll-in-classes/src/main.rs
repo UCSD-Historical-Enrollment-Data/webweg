@@ -9,7 +9,7 @@ async fn main() {
         .unwrap();
 
     // Essentially registers the FA23 term with our session
-    _ = wrapper.associate_term("FA23");
+    _ = wrapper.associate_term("FA23").await;
 
     let course_to_enroll = EnrollWaitAdd::builder()
         .with_section_id("123456")

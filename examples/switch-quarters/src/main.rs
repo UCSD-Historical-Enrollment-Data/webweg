@@ -3,7 +3,7 @@ use webweg::wrapper::WebRegWrapper;
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     let wrapper = WebRegWrapper::builder()
-        .with_cookies("my cookies here")
+        .with_cookies("your cookies here")
         .try_build_wrapper()
         .unwrap();
 
@@ -45,4 +45,16 @@ async fn main() {
             eprintln!("{err}");
         }
     }
+
+    // You can also register terms that are probably hidden (it's available on WebReg,
+    // but is hidden from the get_term API endpoint)
+    _ = wrapper.associate_term("WI24").await;
+
+    let cse_course_notes = wrapper
+        .req("WI24")
+        .parsed()
+        .get_course_note_by_subject("CSE")
+        .await
+        .unwrap();
+    println!("{}", cse_course_notes.get("CSE 101").unwrap());
 }

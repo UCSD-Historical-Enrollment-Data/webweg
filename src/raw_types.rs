@@ -417,5 +417,6 @@ pub struct RawCourseTextItem {
     #[serde(rename = "TEXT")]
     pub text: String,
     /// The course code, where the subject and number is separated by a colon (e.g., `CSE:100`).
+    #[serde(rename = "SUBJCRSE")]
     pub subj_crse: String,
 }
