@@ -3,14 +3,14 @@ use std::collections::HashMap;
 use url::Url;
 
 use crate::constants::{
-    ALL_SCHEDULE, CHANGE_ENROLL, COURSE_DATA, CURR_SCHEDULE, DEFAULT_SCHEDULE_NAME, DEPT_LIST,
-    ENROLL_ADD, ENROLL_DROP, ENROLL_EDIT, EVENT_ADD, EVENT_EDIT, EVENT_GET, EVENT_REMOVE, PLAN_ADD,
-    PLAN_EDIT, PLAN_REMOVE, PLAN_REMOVE_ALL, PREREQS_INFO, REMOVE_SCHEDULE, RENAME_SCHEDULE,
-    SEND_EMAIL, SUBJ_LIST, WAITLIST_ADD, WAITLIST_DROP, WAITLIST_EDIT,
+    ALL_SCHEDULE, CHANGE_ENROLL, COURSE_DATA, COURSE_TEXT, CURR_SCHEDULE, DEFAULT_SCHEDULE_NAME,
+    DEPT_LIST, ENROLL_ADD, ENROLL_DROP, ENROLL_EDIT, EVENT_ADD, EVENT_EDIT, EVENT_GET,
+    EVENT_REMOVE, PLAN_ADD, PLAN_EDIT, PLAN_REMOVE, PLAN_REMOVE_ALL, PREREQS_INFO, REMOVE_SCHEDULE,
+    RENAME_SCHEDULE, SEND_EMAIL, SUBJ_LIST, WAITLIST_ADD, WAITLIST_DROP, WAITLIST_EDIT,
 };
 use crate::raw_types::{
-    RawDepartmentElement, RawEvent, RawPrerequisite, RawScheduledMeeting, RawSubjectElement,
-    RawWebRegMeeting, RawWebRegSearchResultItem,
+    RawCourseTextItem, RawDepartmentElement, RawEvent, RawPrerequisite, RawScheduledMeeting,
+    RawSubjectElement, RawWebRegMeeting, RawWebRegSearchResultItem,
 };
 use crate::types::{
     Courses, Events, PrerequisiteInfo, Schedule, SearchResult, SearchResultItem,
@@ -200,6 +200,21 @@ impl<'a> WrapperTermRawRequest<'a> {
     /// Your schedule list, as returned by WebReg.
     pub async fn get_schedule_list(&self) -> types::Result<String> {
         let url = Url::parse_with_params(ALL_SCHEDULE, &[("termcode", self.term)])?;
+        extract_text(self.info.req(ReqType::Get(url)).send().await).await
+    }
+
+    /// Gets a list of all course notes for a particular subject.
+    ///
+    /// # Parameters
+    /// - `dept`: The subject.
+    ///
+    /// # Returns
+    /// The course notes, as returned by WebReg.
+    pub async fn get_course_note_by_subject(&self, subj: impl AsRef<str>) -> types::Result<String> {
+        let url = Url::parse_with_params(
+            COURSE_TEXT,
+            &[("subjlist", subj.as_ref()), ("termcode", self.term)],
+        )?;
         extract_text(self.info.req(ReqType::Get(url)).send().await).await
     }
 
@@ -508,7 +523,7 @@ impl<'a> WrapperTermRequest<'a> {
         )
     }
 
-    /// Gets all courses that are available. All this does is searches for all courses via Webreg's
+    /// Gets all courses that are available. All this does is searches for all courses via WebReg's
     /// menu. Thus, only basic details are shown.
     ///
     /// # Parameters
@@ -528,6 +543,45 @@ impl<'a> WrapperTermRequest<'a> {
             course_title: item.course_title.trim().to_owned(),
         })
         .collect())
+    }
+
+    /// Gets a list of all course notes for a particular subject.
+    ///
+    /// # Parameters
+    /// - `subj`: The subject.
+    ///
+    /// # Returns
+    /// A map, where the key is the course code (e.g., `CSE 101`) and the value is the associated
+    /// course text (e.g., `Students are required to attend a CSE 101 discussion section.`).
+    pub async fn get_course_note_by_subject(
+        &self,
+        subj: impl AsRef<str>,
+    ) -> types::Result<HashMap<String, String>> {
+        let res = process_get_text::<Vec<RawCourseTextItem>>(
+            self.raw.get_course_note_by_subject(subj).await?,
+        )?;
+
+        let mut map = HashMap::new();
+        // Keep in mind that, for whatever reason, some courses may have multiple entries of the
+        // course text. For example, CSE 101 has two entries:
+        //
+        // {"TEXT":"Students are required to attend a CSE 101 discussion   ","SUBJCRSE":"CSE-101"}
+        // {"TEXT":"section.                                               ","SUBJCRSE":"CSE-101"}
+        //
+        // The text are ordered so that consecutive partitioned course texts should appear next to
+        // each other in the final string (so, with CSE 101, we'll have the expected text of
+        // "Students are required to attend a CSE 101 discussion section.").
+        //
+        // So, we'll just group all text by their course and then finally join everything together.
+        for RawCourseTextItem { text, subj_crse } in res.iter() {
+            let course_text_vec = map.entry(subj_crse).or_insert(vec![]);
+            course_text_vec.push(text.trim());
+        }
+
+        Ok(map
+            .into_iter()
+            .map(|(k, v)| (k.replace('-', " "), v.join(" ")))
+            .collect())
     }
 
     /// Gets all event from your WebReg calendar.

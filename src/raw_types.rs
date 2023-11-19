@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::fmt::Display;
 
 /// One possible result you can get by searching for a particular course.
 #[derive(Debug, Serialize, Deserialize)]
@@ -24,15 +25,16 @@ pub struct RawWebRegSearchResultItem {
     pub course_code: String,
 }
 
-impl ToString for RawWebRegSearchResultItem {
-    fn to_string(&self) -> String {
-        format!(
+impl Display for RawWebRegSearchResultItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let str = format!(
             "[{} {}] {} ({})",
             self.subj_code.trim(),
             self.course_code.trim(),
             self.course_title.trim(),
             self.max_units
-        )
+        );
+        write!(f, "{}", str)
     }
 }
 
@@ -398,10 +400,22 @@ pub struct RawDepartmentElement {
 
 #[derive(Serialize, Deserialize)]
 pub struct RawTermListItem {
+    /// The term description (e.g., Fall 2023).
     #[serde(rename = "termDesc")]
     pub term_desc: String,
+    /// The sequence ID.
     #[serde(rename = "seqId")]
     pub seq_id: i64,
+    /// The term code (e.g., FA23).
     #[serde(rename = "termCode")]
     pub term_code: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct RawCourseTextItem {
+    /// This partitioning of the course text information.
+    #[serde(rename = "TEXT")]
+    pub text: String,
+    /// The course code, where the subject and number is separated by a colon (e.g., `CSE:100`).
+    pub subj_crse: String,
 }
