@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use url::Url;
 
@@ -610,33 +610,108 @@ impl<'a> WrapperTermRequest<'a> {
             .collect())
     }
 
-    /// Gets a list of all section notes for one or more sections.
+    /// Gets a list of all notes for all sections in a course.
     ///
     /// # Parameters
-    /// - `sections`: The list of section codes to consider (e.g., `[12345, 33322]`). It is assumed
-    ///   that each section code is formatted properly.
+    /// - `subject_code`: The subject code. For example, if you wanted to check `MATH 100B`, you
+    /// would put `MATH`.
+    /// - `course_code`: The course code. For example, if you wanted to check `MATH 100B`, you
+    /// would put `100B`.
     ///
     /// # Returns
-    /// A map, where the key is the section number (e.g., `123456`) and the value is the associated
-    /// course text (e.g., `CSE 251B B00/B01 will meet in WLH 2001.`).
-    pub async fn get_section_notes<T: AsRef<str>>(
+    /// A map, where the key is the section family (e.g., section `A`, which encompasses all sections
+    /// that start with A, like A01, A02, ...), and the value is the note for that section.
+    pub async fn get_section_notes_by_course(
         &self,
-        sections: &[T],
+        subject_code: impl AsRef<str>,
+        course_num: impl AsRef<str>,
     ) -> types::Result<HashMap<String, String>> {
+        // As usual, WebReg only has the best possible API design. The way WebReg's
+        // `search-get-section-text` endpoint works is that it takes a list of all section IDs.
+        // The section ID that users will normally see when searching a course on WebReg, or
+        // through my implementation of the `get_course_info` function, is the section ID associated
+        // with a discussion meeting (basically, whatever you can enroll in).
+        //
+        // In reality, each section actually has two section IDs -- the one that you can enroll
+        // with (usually a discussion section) and another for the parent meetings (like lectures
+        // or midterms or final exams). We need to get _that_ particular section ID as well.
+
+        // Begin by getting a list of all valid (section ID, section code) pairs.
+        let section_id_code = serde_json::from_str::<Vec<RawWebRegMeeting>>(
+            &self.raw.get_course_info(subject_code, course_num).await?,
+        )?
+        .into_iter()
+        .filter(|d| d.display_type != "CA" && !d.section_id.is_empty() && !d.sect_code.is_empty())
+        .map(|d| (d.section_id, d.sect_code))
+        .collect::<Vec<_>>();
+
+        // We can construct a map where the key is the parent section ID (e.g., section A), and the
+        // value is a list of all associated sections.
+        let mut parent_id_section_map: HashMap<&str, HashSet<&str>> = HashMap::new();
+        // We'll also maintain a map where the key is a section ID and the value is the associated
+        // parent ID.
+        let mut section_id_parent_map: HashMap<&str, &str> = HashMap::new();
+        for (section_id, section_code) in &section_id_code {
+            let section_family: &str = if section_code.as_bytes()[0].is_ascii_digit() {
+                section_code
+            } else {
+                // Get the first character of the section code (will be a letter)
+                &section_code[..1]
+            };
+
+            let entry = parent_id_section_map
+                .entry(section_family)
+                .or_insert(HashSet::new());
+            entry.insert(section_id);
+
+            // Because each section ID should be unique, we know that a section ID won't be
+            // assigned to two different section families. So, no need to modify the entry if it
+            // already exists.
+            section_id_parent_map
+                .entry(section_id)
+                .or_insert(section_family);
+        }
+
+        // Now that we have a list of all associated sections to IDs, we can make a call to
+        // that WebReg endpoint.
+        let all_ids = parent_id_section_map
+            .values()
+            .fold(vec![], |mut acc, curr| {
+                curr.iter().for_each(|elem| {
+                    if !acc.contains(elem) {
+                        acc.push(elem);
+                    }
+                });
+                acc
+            });
+
         let res = process_get_text::<Vec<RawSectionTextItem>>(
-            self.raw.get_section_notes(sections).await?,
+            self.raw.get_section_notes(&all_ids).await?,
         )?;
 
-        // Same logic from `get_course_notes` applies here.
+        // Now that we have the response, we can figure out which section each note belongs to.
+        // For this map, the key will be the section family and the value will be the note.
+        //
+        // We'll make the (probably correct) assumption that no individual section will have
+        // different section notes. In other words, we should expect all sections under a family to
+        // have the same applicable note.
         let mut map = HashMap::new();
         for RawSectionTextItem { text, sectnum } in res.iter() {
-            let course_text_vec = map.entry(sectnum).or_insert(vec![]);
+            let section_family = match section_id_parent_map.get(sectnum.as_str()) {
+                None => {
+                    dbg!(&text);
+                    continue;
+                }
+                Some(s) => s,
+            };
+
+            let course_text_vec = map.entry(section_family).or_insert(vec![]);
             course_text_vec.push(text.trim());
         }
 
         Ok(map
             .into_iter()
-            .map(|(k, v)| (k.to_owned(), v.join(" ")))
+            .map(|(k, v)| (k.to_string(), v.join(" ")))
             .collect())
     }
 
