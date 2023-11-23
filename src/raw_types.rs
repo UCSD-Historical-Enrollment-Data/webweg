@@ -27,14 +27,14 @@ pub struct RawWebRegSearchResultItem {
 
 impl Display for RawWebRegSearchResultItem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let str = format!(
+        write!(
+            f,
             "[{} {}] {} ({})",
             self.subj_code.trim(),
             self.course_code.trim(),
             self.course_title.trim(),
             self.max_units
-        );
-        write!(f, "{}", str)
+        )
     }
 }
 
