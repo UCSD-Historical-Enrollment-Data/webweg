@@ -6,11 +6,12 @@ use crate::constants::{
     ALL_SCHEDULE, CHANGE_ENROLL, COURSE_DATA, COURSE_TEXT, CURR_SCHEDULE, DEFAULT_SCHEDULE_NAME,
     DEPT_LIST, ENROLL_ADD, ENROLL_DROP, ENROLL_EDIT, EVENT_ADD, EVENT_EDIT, EVENT_GET,
     EVENT_REMOVE, PLAN_ADD, PLAN_EDIT, PLAN_REMOVE, PLAN_REMOVE_ALL, PREREQS_INFO, REMOVE_SCHEDULE,
-    RENAME_SCHEDULE, SEND_EMAIL, SUBJ_LIST, WAITLIST_ADD, WAITLIST_DROP, WAITLIST_EDIT,
+    RENAME_SCHEDULE, SECTION_TEXT, SEND_EMAIL, SUBJ_LIST, WAITLIST_ADD, WAITLIST_DROP,
+    WAITLIST_EDIT,
 };
 use crate::raw_types::{
     RawCourseTextItem, RawDepartmentElement, RawEvent, RawPrerequisite, RawScheduledMeeting,
-    RawSubjectElement, RawWebRegMeeting, RawWebRegSearchResultItem,
+    RawSectionTextItem, RawSubjectElement, RawWebRegMeeting, RawWebRegSearchResultItem,
 };
 use crate::types::{
     Courses, Events, PrerequisiteInfo, Schedule, SearchResult, SearchResultItem,
@@ -203,17 +204,42 @@ impl<'a> WrapperTermRawRequest<'a> {
         extract_text(self.info.req(ReqType::Get(url)).send().await).await
     }
 
-    /// Gets a list of all course notes for a particular subject.
+    /// Gets a list of all course notes for one or more subjects.
     ///
     /// # Parameters
-    /// - `dept`: The subject.
+    /// - `subj`: The list of subject codes to consider.
     ///
     /// # Returns
     /// The course notes, as returned by WebReg.
-    pub async fn get_course_note_by_subject(&self, subj: impl AsRef<str>) -> types::Result<String> {
+    pub async fn get_course_notes<T: AsRef<str>>(&self, subj: &[T]) -> types::Result<String> {
+        let subj_list = subj
+            .iter()
+            .map(|d| d.as_ref())
+            .collect::<Vec<_>>()
+            .join(":");
         let url = Url::parse_with_params(
             COURSE_TEXT,
-            &[("subjlist", subj.as_ref()), ("termcode", self.term)],
+            &[("subjlist", subj_list.as_str()), ("termcode", self.term)],
+        )?;
+        extract_text(self.info.req(ReqType::Get(url)).send().await).await
+    }
+
+    /// Gets a list of all section notes for one or more sections.
+    ///
+    /// # Parameters
+    /// - `sections`: The list of section IDs (e.g., `[12345, 55522]`)
+    ///
+    /// # Returns
+    /// The section notes, as returned by WebReg.
+    pub async fn get_section_notes<T: AsRef<str>>(&self, sections: &[T]) -> types::Result<String> {
+        let sec_list = sections
+            .iter()
+            .map(|d| d.as_ref())
+            .collect::<Vec<_>>()
+            .join(":");
+        let url = Url::parse_with_params(
+            SECTION_TEXT,
+            &[("sectnumlist", sec_list.as_str()), ("termcode", self.term)],
         )?;
         extract_text(self.info.req(ReqType::Get(url)).send().await).await
     }
@@ -545,21 +571,21 @@ impl<'a> WrapperTermRequest<'a> {
         .collect())
     }
 
-    /// Gets a list of all course notes for a particular subject.
+    /// Gets a list of all course notes for one or more subjects..
     ///
     /// # Parameters
-    /// - `subj`: The subject.
+    /// - `subj`: The list of subject codes to consider. It is assumed that each subject code
+    ///   is uppercase and formatted properly (i.e., no additional processing will be performed).
     ///
     /// # Returns
     /// A map, where the key is the course code (e.g., `CSE 101`) and the value is the associated
     /// course text (e.g., `Students are required to attend a CSE 101 discussion section.`).
-    pub async fn get_course_note_by_subject(
+    pub async fn get_course_notes<T: AsRef<str>>(
         &self,
-        subj: impl AsRef<str>,
+        subj: &[T],
     ) -> types::Result<HashMap<String, String>> {
-        let res = process_get_text::<Vec<RawCourseTextItem>>(
-            self.raw.get_course_note_by_subject(subj).await?,
-        )?;
+        let res =
+            process_get_text::<Vec<RawCourseTextItem>>(self.raw.get_course_notes(subj).await?)?;
 
         let mut map = HashMap::new();
         // Keep in mind that, for whatever reason, some courses may have multiple entries of the
@@ -581,6 +607,36 @@ impl<'a> WrapperTermRequest<'a> {
         Ok(map
             .into_iter()
             .map(|(k, v)| (k.replace('-', " "), v.join(" ")))
+            .collect())
+    }
+
+    /// Gets a list of all section notes for one or more sections.
+    ///
+    /// # Parameters
+    /// - `sections`: The list of section codes to consider (e.g., `[12345, 33322]`). It is assumed
+    ///   that each section code is formatted properly.
+    ///
+    /// # Returns
+    /// A map, where the key is the section number (e.g., `123456`) and the value is the associated
+    /// course text (e.g., `CSE 251B B00/B01 will meet in WLH 2001.`).
+    pub async fn get_section_notes<T: AsRef<str>>(
+        &self,
+        sections: &[T],
+    ) -> types::Result<HashMap<String, String>> {
+        let res = process_get_text::<Vec<RawSectionTextItem>>(
+            self.raw.get_section_notes(sections).await?,
+        )?;
+
+        // Same logic from `get_course_notes` applies here.
+        let mut map = HashMap::new();
+        for RawSectionTextItem { text, sectnum } in res.iter() {
+            let course_text_vec = map.entry(sectnum).or_insert(vec![]);
+            course_text_vec.push(text.trim());
+        }
+
+        Ok(map
+            .into_iter()
+            .map(|(k, v)| (k.to_owned(), v.join(" ")))
             .collect())
     }
 

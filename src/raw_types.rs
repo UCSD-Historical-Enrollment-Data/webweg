@@ -420,3 +420,14 @@ pub struct RawCourseTextItem {
     #[serde(rename = "SUBJCRSE")]
     pub subj_crse: String,
 }
+
+#[derive(Serialize, Deserialize)]
+pub struct RawSectionTextItem {
+    /// The course section number (e.g., `123456`).
+    #[serde(rename = "SECTNUM")]
+    pub sectnum: String,
+
+    /// This partitioning of the subject text information.
+    #[serde(rename = "TEXT")]
+    pub text: String,
+}
