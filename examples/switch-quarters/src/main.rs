@@ -12,7 +12,7 @@ async fn main() {
 
     // Let's get all CSE 100 courses for FA23
     let cse100_fa23 = wrapper
-        .req("FA23")
+        .req("WI24")
         .parsed()
         .get_course_info("CSE", "100")
         .await;
@@ -45,4 +45,17 @@ async fn main() {
             eprintln!("{err}");
         }
     }
+
+    // You can also register terms that are probably hidden (it's available on WebReg,
+    // but is hidden from the get_term API endpoint)
+    _ = wrapper.associate_term("WI24").await;
+
+    // Of course, we can get more than just course info when switching quarters.
+    let cse_course_notes = wrapper
+        .req("WI24")
+        .parsed()
+        .get_section_notes_by_course("CSE", "290")
+        .await
+        .unwrap();
+    println!("{cse_course_notes:?}");
 }

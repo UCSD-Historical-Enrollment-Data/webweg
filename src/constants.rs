@@ -71,6 +71,12 @@ pub(crate) const SUBJ_LIST: &str =
 pub(crate) const DEPT_LIST: &str =
     "https://act.ucsd.edu/webreg2/svc/wradapter/secure/search-load-department?";
 
+pub(crate) const COURSE_TEXT: &str =
+    "https://act.ucsd.edu/webreg2/svc/wradapter/secure/search-get-crse-text?";
+
+pub(crate) const SECTION_TEXT: &str =
+    "https://act.ucsd.edu/webreg2/svc/wradapter/secure/search-get-section-text?";
+
 pub(crate) const TERM_LIST: &str = "https://act.ucsd.edu/webreg2/svc/wradapter/get-term?";
 
 pub(crate) const VERIFY_FAIL_ERR: &str = "[{\"VERIFY\":\"FAIL\"}]";

@@ -1,16 +1,17 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use url::Url;
 
 use crate::constants::{
-    ALL_SCHEDULE, CHANGE_ENROLL, COURSE_DATA, CURR_SCHEDULE, DEFAULT_SCHEDULE_NAME, DEPT_LIST,
-    ENROLL_ADD, ENROLL_DROP, ENROLL_EDIT, EVENT_ADD, EVENT_EDIT, EVENT_GET, EVENT_REMOVE, PLAN_ADD,
-    PLAN_EDIT, PLAN_REMOVE, PLAN_REMOVE_ALL, PREREQS_INFO, REMOVE_SCHEDULE, RENAME_SCHEDULE,
-    SEND_EMAIL, SUBJ_LIST, WAITLIST_ADD, WAITLIST_DROP, WAITLIST_EDIT,
+    ALL_SCHEDULE, CHANGE_ENROLL, COURSE_DATA, COURSE_TEXT, CURR_SCHEDULE, DEFAULT_SCHEDULE_NAME,
+    DEPT_LIST, ENROLL_ADD, ENROLL_DROP, ENROLL_EDIT, EVENT_ADD, EVENT_EDIT, EVENT_GET,
+    EVENT_REMOVE, PLAN_ADD, PLAN_EDIT, PLAN_REMOVE, PLAN_REMOVE_ALL, PREREQS_INFO, REMOVE_SCHEDULE,
+    RENAME_SCHEDULE, SECTION_TEXT, SEND_EMAIL, SUBJ_LIST, WAITLIST_ADD, WAITLIST_DROP,
+    WAITLIST_EDIT,
 };
 use crate::raw_types::{
-    RawDepartmentElement, RawEvent, RawPrerequisite, RawScheduledMeeting, RawSubjectElement,
-    RawWebRegMeeting, RawWebRegSearchResultItem,
+    RawCourseTextItem, RawDepartmentElement, RawEvent, RawPrerequisite, RawScheduledMeeting,
+    RawSectionTextItem, RawSubjectElement, RawWebRegMeeting, RawWebRegSearchResultItem,
 };
 use crate::types::{
     Courses, Events, PrerequisiteInfo, Schedule, SearchResult, SearchResultItem,
@@ -200,6 +201,46 @@ impl<'a> WrapperTermRawRequest<'a> {
     /// Your schedule list, as returned by WebReg.
     pub async fn get_schedule_list(&self) -> types::Result<String> {
         let url = Url::parse_with_params(ALL_SCHEDULE, &[("termcode", self.term)])?;
+        extract_text(self.info.req(ReqType::Get(url)).send().await).await
+    }
+
+    /// Gets a list of all course notes for one or more subjects.
+    ///
+    /// # Parameters
+    /// - `subj`: The list of subject codes to consider.
+    ///
+    /// # Returns
+    /// The course notes, as returned by WebReg.
+    pub async fn get_course_notes<T: AsRef<str>>(&self, subj: &[T]) -> types::Result<String> {
+        let subj_list = subj
+            .iter()
+            .map(|d| d.as_ref())
+            .collect::<Vec<_>>()
+            .join(":");
+        let url = Url::parse_with_params(
+            COURSE_TEXT,
+            &[("subjlist", subj_list.as_str()), ("termcode", self.term)],
+        )?;
+        extract_text(self.info.req(ReqType::Get(url)).send().await).await
+    }
+
+    /// Gets a list of all section notes for one or more sections.
+    ///
+    /// # Parameters
+    /// - `sections`: The list of section IDs (e.g., `[12345, 55522]`)
+    ///
+    /// # Returns
+    /// The section notes, as returned by WebReg.
+    pub async fn get_section_notes<T: AsRef<str>>(&self, sections: &[T]) -> types::Result<String> {
+        let sec_list = sections
+            .iter()
+            .map(|d| d.as_ref())
+            .collect::<Vec<_>>()
+            .join(":");
+        let url = Url::parse_with_params(
+            SECTION_TEXT,
+            &[("sectnumlist", sec_list.as_str()), ("termcode", self.term)],
+        )?;
         extract_text(self.info.req(ReqType::Get(url)).send().await).await
     }
 
@@ -508,7 +549,7 @@ impl<'a> WrapperTermRequest<'a> {
         )
     }
 
-    /// Gets all courses that are available. All this does is searches for all courses via Webreg's
+    /// Gets all courses that are available. All this does is searches for all courses via WebReg's
     /// menu. Thus, only basic details are shown.
     ///
     /// # Parameters
@@ -528,6 +569,150 @@ impl<'a> WrapperTermRequest<'a> {
             course_title: item.course_title.trim().to_owned(),
         })
         .collect())
+    }
+
+    /// Gets a list of all course notes for one or more subjects..
+    ///
+    /// # Parameters
+    /// - `subj`: The list of subject codes to consider. It is assumed that each subject code
+    ///   is uppercase and formatted properly (i.e., no additional processing will be performed).
+    ///
+    /// # Returns
+    /// A map, where the key is the course code (e.g., `CSE 101`) and the value is the associated
+    /// course text (e.g., `Students are required to attend a CSE 101 discussion section.`).
+    pub async fn get_course_notes<T: AsRef<str>>(
+        &self,
+        subj: &[T],
+    ) -> types::Result<HashMap<String, String>> {
+        let res =
+            process_get_text::<Vec<RawCourseTextItem>>(self.raw.get_course_notes(subj).await?)?;
+
+        let mut map = HashMap::new();
+        // Keep in mind that, for whatever reason, some courses may have multiple entries of the
+        // course text. For example, CSE 101 has two entries:
+        //
+        // {"TEXT":"Students are required to attend a CSE 101 discussion   ","SUBJCRSE":"CSE-101"}
+        // {"TEXT":"section.                                               ","SUBJCRSE":"CSE-101"}
+        //
+        // The text are ordered so that consecutive partitioned course texts should appear next to
+        // each other in the final string (so, with CSE 101, we'll have the expected text of
+        // "Students are required to attend a CSE 101 discussion section.").
+        //
+        // So, we'll just group all text by their course and then finally join everything together.
+        for RawCourseTextItem { text, subj_crse } in res.iter() {
+            let course_text_vec = map.entry(subj_crse).or_insert(vec![]);
+            course_text_vec.push(text.trim());
+        }
+
+        Ok(map
+            .into_iter()
+            .map(|(k, v)| (k.replace('-', " "), v.join(" ")))
+            .collect())
+    }
+
+    /// Gets a list of all notes for all sections in a course.
+    ///
+    /// # Parameters
+    /// - `subject_code`: The subject code. For example, if you wanted to check `MATH 100B`, you
+    /// would put `MATH`.
+    /// - `course_code`: The course code. For example, if you wanted to check `MATH 100B`, you
+    /// would put `100B`.
+    ///
+    /// # Returns
+    /// A map, where the key is the section family (e.g., section `A`, which encompasses all sections
+    /// that start with A, like A01, A02, ...), and the value is the note for that section.
+    pub async fn get_section_notes_by_course(
+        &self,
+        subject_code: impl AsRef<str>,
+        course_num: impl AsRef<str>,
+    ) -> types::Result<HashMap<String, String>> {
+        // As usual, WebReg only has the best possible API design. The way WebReg's
+        // `search-get-section-text` endpoint works is that it takes a list of all section IDs.
+        // The section ID that users will normally see when searching a course on WebReg, or
+        // through my implementation of the `get_course_info` function, is the section ID associated
+        // with a discussion meeting (basically, whatever you can enroll in).
+        //
+        // In reality, each section actually has two section IDs -- the one that you can enroll
+        // with (usually a discussion section) and another for the parent meetings (like lectures
+        // or midterms or final exams). We need to get _that_ particular section ID as well.
+
+        // Begin by getting a list of all valid (section ID, section code) pairs.
+        let section_id_code = serde_json::from_str::<Vec<RawWebRegMeeting>>(
+            &self.raw.get_course_info(subject_code, course_num).await?,
+        )?
+        .into_iter()
+        .filter(|d| d.display_type != "CA" && !d.section_id.is_empty() && !d.sect_code.is_empty())
+        .map(|d| (d.section_id, d.sect_code))
+        .collect::<Vec<_>>();
+
+        // We can construct a map where the key is the parent section ID (e.g., section A), and the
+        // value is a list of all associated sections.
+        let mut parent_id_section_map: HashMap<&str, HashSet<&str>> = HashMap::new();
+        // We'll also maintain a map where the key is a section ID and the value is the associated
+        // parent ID.
+        let mut section_id_parent_map: HashMap<&str, &str> = HashMap::new();
+        for (section_id, section_code) in &section_id_code {
+            let section_family: &str = if section_code.as_bytes()[0].is_ascii_digit() {
+                section_code
+            } else {
+                // Get the first character of the section code (will be a letter)
+                &section_code[..1]
+            };
+
+            let entry = parent_id_section_map
+                .entry(section_family)
+                .or_insert(HashSet::new());
+            entry.insert(section_id);
+
+            // Because each section ID should be unique, we know that a section ID won't be
+            // assigned to two different section families. So, no need to modify the entry if it
+            // already exists.
+            section_id_parent_map
+                .entry(section_id)
+                .or_insert(section_family);
+        }
+
+        // Now that we have a list of all associated sections to IDs, we can make a call to
+        // that WebReg endpoint.
+        let all_ids = parent_id_section_map
+            .values()
+            .fold(vec![], |mut acc, curr| {
+                curr.iter().for_each(|elem| {
+                    if !acc.contains(elem) {
+                        acc.push(elem);
+                    }
+                });
+                acc
+            });
+
+        let res = process_get_text::<Vec<RawSectionTextItem>>(
+            self.raw.get_section_notes(&all_ids).await?,
+        )?;
+
+        // Now that we have the response, we can figure out which section each note belongs to.
+        // For this map, the key will be the section family and the value will be the note.
+        //
+        // We'll make the (probably correct) assumption that no individual section will have
+        // different section notes. In other words, we should expect all sections under a family to
+        // have the same applicable note.
+        let mut map = HashMap::new();
+        for RawSectionTextItem { text, sectnum } in res.iter() {
+            let section_family = match section_id_parent_map.get(sectnum.as_str()) {
+                None => {
+                    dbg!(&text);
+                    continue;
+                }
+                Some(s) => s,
+            };
+
+            let course_text_vec = map.entry(section_family).or_insert(vec![]);
+            course_text_vec.push(text.trim());
+        }
+
+        Ok(map
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.join(" ")))
+            .collect())
     }
 
     /// Gets all event from your WebReg calendar.

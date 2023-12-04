@@ -8,22 +8,25 @@
   <a href="https://github.com/ewang2002/UCSDHistEnrollData">UCSDHistEnrollmentData</a>
 </p>
 
-An asynchronous API wrapper, written in Rust, for the [University of California San Diego](https://ucsd.edu/)'s [WebReg](https://act.ucsd.edu/webreg2/start) course enrollment system.
+An asynchronous API wrapper for the [University of California San Diego](https://ucsd.edu/)'s [WebReg](https://act.ucsd.edu/webreg2/start) course enrollment system.
 
 ## Usage
 To use this crate, run the following command:
 ```
 cargo add webweg
 ```
-See the [crates.io](https://crates.io/crates/webweg) page for more information.
+Alternatively, you can also put the following line into your `Cargo.toml`:
+```toml
+webweg = { version = "0.9", features = ["multi"] }
+```
+
+See the corresponding [crates.io](https://crates.io/crates/webweg) page for more information.
 
 ## Wrapper Features
-A lot of the things that you can do on WebReg can be done with this 
-wrapper. For example, you're able to:
+A lot of the things that you can do on WebReg can be done with this wrapper. For example, you're able to:
 - Get all possible classes in the quarter.
 - Search for classes based on some conditions (i.e., advanced search). 
-- Get detailed information about a specific class (e.g., number of students 
-enrolled, instructor, etc.)
+- Get detailed information about a specific class (e.g., number of students enrolled, instructor, etc.)
 - Get your current schedule. 
 
 You're also able to do things like:
@@ -36,8 +39,23 @@ You're also able to do things like:
 
 To see some examples, check out the `examples` folder.
 
-## Crate Features
-An optional feature that can be enabled is the `multi` feature. By default, the wrapper will assume an environment with a single thread or task. So, if you want to be able to share an instance of the wrapper across multiple threads or tasks, you would have to use a `Mutex`. The problem with using a `Mutex` is that if a request is taking a long time (which isn't unusual), the entire wrapper is locked until the 
+## Multithreading
+By default, the wrapper will assume an environment where it is used in a single thread or task. So, if you want to share
+an instance of the wrapper across multiple threads or tasks, you would have to use a `Mutex`. The problem with using a 
+`Mutex` is that if a request is taking a long time (which isn't unusual), the entire wrapper is locked until the request
+is finished, meaning the other threads using this instance of the wrapper must wait.
+
+By enabling the `multi` feature, the wrapper can be used across multiple threads or tasks _without_ the need for a `Mutex`.
+
+To add this crate with the `multi` feature, you can either run
+```
+cargo add webweg --features multi
+```
+or put 
+```toml
+webweg = { version = "0.9", features = ["multi"] }
+```
+in your `Cargo.toml`.
 
 ## Authentication
 
@@ -93,7 +111,7 @@ MAJOR.MINOR.PATCH
 ```
 - the `MAJOR` version will be incremented when a very significant feature is added, _or_ **many** non-backwards compatible changes are added, _or_ a (one or more) **significant** non-backwards compatible change is added
 - the `MINOR` version will be incremented when a minor feature is added, _or_ **few** (if any) minor non-backwards compatible changes are added.
-- the `PATCH` version will be incremented when a minor enhancement is added or a bug is fixed.
+- the `PATCH` version will be incremented when a minor enhancement/feature is added or a bug is fixed.
 
 ## Disclaimer
 I am not responsible for any damages or other issue(s) caused by 
