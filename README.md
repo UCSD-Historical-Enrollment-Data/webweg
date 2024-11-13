@@ -17,7 +17,7 @@ cargo add webweg
 ```
 Alternatively, you can also put the following line into your `Cargo.toml`:
 ```toml
-webweg = { version = "0.9", features = ["multi"] }
+webweg = "0.9"
 ```
 
 See the corresponding [crates.io](https://crates.io/crates/webweg) page for more information.
